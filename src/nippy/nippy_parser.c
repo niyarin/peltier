@@ -1,64 +1,63 @@
 #include "nippy_parser.h"
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
 
 // Nippy type tags (based on nippy format)
-// NOTE: nil doesn't have an explicit type tag in some versions
-#define NIPPY_TYPE_TRUE          0x01
-#define NIPPY_TYPE_FALSE         0x02
-#define NIPPY_TYPE_BYTE          0x28
-#define NIPPY_TYPE_SHORT         0x29
-#define NIPPY_TYPE_INT           0x2A
-#define NIPPY_TYPE_LONG          0x2B
-#define NIPPY_TYPE_FLOAT         0x2D
-#define NIPPY_TYPE_DOUBLE        0x2E
+#define NIPPY_TYPE_NIL           0x03  // nil value (3)
+#define NIPPY_TYPE_TRUE          0x08  // true value (8)
+#define NIPPY_TYPE_FALSE         0x09  // false value (9)
+#define NIPPY_TYPE_BYTE          0x28  // byte (40)
+#define NIPPY_TYPE_SHORT         0x29  // short (41)
+#define NIPPY_TYPE_INT           0x2A  // integer (42)
+#define NIPPY_TYPE_LONG          0x2B  // long-xl (43)
+#define NIPPY_TYPE_FLOAT         0x3C  // float (60)
+#define NIPPY_TYPE_DOUBLE        0x3D  // double (61)
 
-// String types
-#define NIPPY_TYPE_STRING_0      0x50
-#define NIPPY_TYPE_STRING_SM     0x51  // Small string (1-byte length)
-#define NIPPY_TYPE_STRING_MD     0x52  // Medium string (2-byte length)
-#define NIPPY_TYPE_STRING_LG     0x53  // Large string (4-byte length)
+// String types (IDs from nippy.clj types-spec)
+#define NIPPY_TYPE_STRING_0      0x22  // 34 - str-0 (empty)
+#define NIPPY_TYPE_STRING_SM     0x60  // 96 - str-sm* (unsigned, 1-byte length)
+#define NIPPY_TYPE_STRING_MD     0x10  // 16 - str-md (2-byte length)
+#define NIPPY_TYPE_STRING_LG     0x0D  // 13 - str-lg (4-byte length)
+#define NIPPY_TYPE_STRING_SM_    0x69  // 105 - str-sm_ (signed, 1-byte length, v3.3.0+)
 
-// Keyword types
-#define NIPPY_TYPE_KEYWORD_0     0x54
-#define NIPPY_TYPE_KEYWORD_SM    0x55
-#define NIPPY_TYPE_KEYWORD_MD    0x56
-#define NIPPY_TYPE_KEYWORD_LG    0x57
+// Keyword types (IDs from nippy.clj types-spec)
+#define NIPPY_TYPE_KEYWORD_SM    0x6A  // 106 - kw-sm (1-byte length)
+#define NIPPY_TYPE_KEYWORD_MD    0x55  // 85 - kw-md (2-byte length)
+#define NIPPY_TYPE_KEYWORD_LG    0x4D  // 77 - kw-md_ (4-byte length, buggy but still used)
 
-// Collection types
-#define NIPPY_TYPE_VECTOR_0      0x60
-#define NIPPY_TYPE_VECTOR_SM     0x61
-#define NIPPY_TYPE_VECTOR_MD     0x62
-#define NIPPY_TYPE_VECTOR_LG     0x63
+// Collection types (IDs from nippy.clj types-spec)
+#define NIPPY_TYPE_VECTOR_0      0x11  // 17 - vec-0
+#define NIPPY_TYPE_VECTOR_SM     0x61  // 97 - vec-sm* (unsigned, 1-byte count)
+#define NIPPY_TYPE_VECTOR_MD     0x45  // 69 - vec-md (2-byte count)
+#define NIPPY_TYPE_VECTOR_LG     0x15  // 21 - vec-lg (4-byte count)
+#define NIPPY_TYPE_VECTOR_SM_    0x6E  // 110 - vec-sm_ (signed, 1-byte count, v3.3.0+)
 
-#define NIPPY_TYPE_SET_0         0x64
-#define NIPPY_TYPE_SET_SM        0x65
-#define NIPPY_TYPE_SET_MD        0x66
-#define NIPPY_TYPE_SET_LG        0x67
+#define NIPPY_TYPE_SET_0         0x12  // 18 - set-0
+#define NIPPY_TYPE_SET_SM        0x62  // 98 - set-sm* (unsigned, 1-byte count)
+#define NIPPY_TYPE_SET_MD        0x20  // 32 - set-md (2-byte count)
+#define NIPPY_TYPE_SET_LG        0x17  // 23 - set-lg (4-byte count)
+#define NIPPY_TYPE_SET_SM_       0x6F  // 111 - set-sm_ (signed, 1-byte count, v3.3.0+)
 
-#define NIPPY_TYPE_MAP_0         0x68
-#define NIPPY_TYPE_MAP_SM        0x69
-#define NIPPY_TYPE_MAP_MD        0x6A
-#define NIPPY_TYPE_MAP_LG        0x6B
+#define NIPPY_TYPE_MAP_0         0x13  // 19 - map-0
+#define NIPPY_TYPE_MAP_SM        0x63  // 99 - map-sm* (unsigned, 1-byte count * 2)
+#define NIPPY_TYPE_MAP_MD        0x21  // 33 - map-md (2-byte count * 2)
+#define NIPPY_TYPE_MAP_LG        0x1E  // 30 - map-lg (4-byte count * 2)
+#define NIPPY_TYPE_MAP_SM_       0x70  // 112 - map-sm_ (signed, 1-byte count * 2, v3.3.0+)
 
-#define NIPPY_TYPE_LIST_0        0x6C
-#define NIPPY_TYPE_LIST_SM       0x6D
-
-// v3.3.0+ unsigned variants
-#define NIPPY_TYPE_VECTOR_SM_U   0x6E  // vec-sm_ (unsigned)
-#define NIPPY_TYPE_SET_SM_U      0x6F  // set-sm_ (unsigned)
-#define NIPPY_TYPE_MAP_SM_U      0x70  // map-sm_ (unsigned)
+#define NIPPY_TYPE_LIST_0        0x23  // 35 - list-0
+#define NIPPY_TYPE_LIST_SM       0x24  // 36 - list-sm (1-byte count)
+#define NIPPY_TYPE_LIST_MD       0x36  // 54 - list-md (2-byte count)
+#define NIPPY_TYPE_LIST_LG       0x14  // 20 - list-lg (4-byte count)
 
 // Arrays (Java native arrays, treated as vectors in EDN)
 #define NIPPY_TYPE_OBJECT_ARRAY_LG 0x73  // object-array-lg
 
 // Additional types
-#define NIPPY_TYPE_LONG_0       0x00  // long 0
-// Note: 0x01-0x03 are used for caching and conflict with other values
-#define NIPPY_TYPE_CHAR         0x0A  // char (2 bytes)
+#define NIPPY_TYPE_LONG_0       0x00  // long 0 (0)
+#define NIPPY_TYPE_CHAR         0x0A  // char (10)
 #define NIPPY_TYPE_CACHED_0     0x3B  // Cached value definition 0 (59)
-#define NIPPY_TYPE_FLOAT        0x3C  // float (4 bytes) (60)
 #define NIPPY_TYPE_CACHED_1     0x3F  // Cached value definition 1 (63)
 #define NIPPY_TYPE_CACHED_2     0x40  // Cached value definition 2 (64)
 #define NIPPY_TYPE_CACHED_3     0x41  // Cached value definition 3 (65)
@@ -66,9 +65,21 @@
 #define NIPPY_TYPE_UUID         0x5B  // UUID (16 bytes) (91)
 
 // Parser structure with PDA stack
+// Nippy header info
+typedef struct {
+    bool present;           // Whether header was found
+    uint8_t version;        // Header format version
+    uint8_t meta_byte;      // Metadata byte
+    bool compressed;        // Has compression
+    bool encrypted;         // Has encryption
+} nippy_header_t;
+
 struct nippy_parser {
     buffer_t *buffer;
     arena_t *arena;
+
+    // Header info
+    nippy_header_t header;
 
     // PDA stack
     parse_context_t stack[MAX_NESTING_DEPTH];
@@ -109,68 +120,89 @@ static parse_context_t* current_context(nippy_parser_t *p) {
 
 // Type checking helpers
 static bool is_string_type(uint8_t tag) {
-    return tag >= NIPPY_TYPE_STRING_0 && tag <= NIPPY_TYPE_STRING_LG;
+    return tag == NIPPY_TYPE_STRING_0 ||
+           tag == NIPPY_TYPE_STRING_SM ||
+           tag == NIPPY_TYPE_STRING_MD ||
+           tag == NIPPY_TYPE_STRING_LG ||
+           tag == NIPPY_TYPE_STRING_SM_;
 }
 
 static bool is_keyword_type(uint8_t tag) {
-    return tag >= NIPPY_TYPE_KEYWORD_0 && tag <= NIPPY_TYPE_KEYWORD_LG;
+    return tag == NIPPY_TYPE_KEYWORD_SM ||
+           tag == NIPPY_TYPE_KEYWORD_MD ||
+           tag == NIPPY_TYPE_KEYWORD_LG;
 }
 
 static bool is_vector_type(uint8_t tag) {
-    return (tag >= NIPPY_TYPE_VECTOR_0 && tag <= NIPPY_TYPE_VECTOR_LG) ||
-           tag == NIPPY_TYPE_VECTOR_SM_U ||
+    return tag == NIPPY_TYPE_VECTOR_0 ||
+           tag == NIPPY_TYPE_VECTOR_SM ||
+           tag == NIPPY_TYPE_VECTOR_MD ||
+           tag == NIPPY_TYPE_VECTOR_LG ||
+           tag == NIPPY_TYPE_VECTOR_SM_ ||
            tag == NIPPY_TYPE_OBJECT_ARRAY_LG;
 }
 
 static bool is_set_type(uint8_t tag) {
-    return (tag >= NIPPY_TYPE_SET_0 && tag <= NIPPY_TYPE_SET_LG) ||
-           tag == NIPPY_TYPE_SET_SM_U;
+    return tag == NIPPY_TYPE_SET_0 ||
+           tag == NIPPY_TYPE_SET_SM ||
+           tag == NIPPY_TYPE_SET_MD ||
+           tag == NIPPY_TYPE_SET_LG ||
+           tag == NIPPY_TYPE_SET_SM_;
 }
 
 static bool is_map_type(uint8_t tag) {
-    return (tag >= NIPPY_TYPE_MAP_0 && tag <= NIPPY_TYPE_MAP_LG) ||
-           tag == NIPPY_TYPE_MAP_SM_U;
+    return tag == NIPPY_TYPE_MAP_0 ||
+           tag == NIPPY_TYPE_MAP_SM ||
+           tag == NIPPY_TYPE_MAP_MD ||
+           tag == NIPPY_TYPE_MAP_LG ||
+           tag == NIPPY_TYPE_MAP_SM_;
 }
 
 static bool is_list_type(uint8_t tag) {
-    return tag >= NIPPY_TYPE_LIST_0 && tag <= NIPPY_TYPE_LIST_SM;
+    return tag == NIPPY_TYPE_LIST_0 ||
+           tag == NIPPY_TYPE_LIST_SM ||
+           tag == NIPPY_TYPE_LIST_MD ||
+           tag == NIPPY_TYPE_LIST_LG;
 }
 
 // Read length prefix based on type tag
 static size_t read_length_prefix(nippy_parser_t *p, uint8_t tag) {
-    // v3.3.0+ unsigned variants (1-byte unsigned)
-    if (tag == NIPPY_TYPE_VECTOR_SM_U ||
-        tag == NIPPY_TYPE_SET_SM_U ||
-        tag == NIPPY_TYPE_MAP_SM_U) {
+    // Empty collections (length 0)
+    if (tag == NIPPY_TYPE_VECTOR_0 || tag == NIPPY_TYPE_SET_0 ||
+        tag == NIPPY_TYPE_MAP_0 || tag == NIPPY_TYPE_LIST_0 ||
+        tag == NIPPY_TYPE_STRING_0) {
+        return 0;
+    }
+
+    // 1-byte length (strings, keywords, small collections)
+    if (tag == NIPPY_TYPE_VECTOR_SM || tag == NIPPY_TYPE_SET_SM || tag == NIPPY_TYPE_MAP_SM ||
+        tag == NIPPY_TYPE_VECTOR_SM_ || tag == NIPPY_TYPE_SET_SM_ || tag == NIPPY_TYPE_MAP_SM_ ||
+        tag == NIPPY_TYPE_LIST_SM ||
+        tag == NIPPY_TYPE_STRING_SM || tag == NIPPY_TYPE_STRING_SM_ ||
+        tag == NIPPY_TYPE_KEYWORD_SM) {
         int b = buffer_read_byte(p->buffer);
         return (b >= 0) ? (size_t)((uint8_t)b) : 0;
     }
 
-    // Arrays (4-byte length)
-    if (tag == NIPPY_TYPE_OBJECT_ARRAY_LG) {
+    // 2-byte length (medium collections, strings, keywords)
+    if (tag == NIPPY_TYPE_VECTOR_MD || tag == NIPPY_TYPE_SET_MD ||
+        tag == NIPPY_TYPE_MAP_MD || tag == NIPPY_TYPE_LIST_MD ||
+        tag == NIPPY_TYPE_STRING_MD || tag == NIPPY_TYPE_KEYWORD_MD) {
+        int16_t len = buffer_read_int16_be(p->buffer);
+        return (len >= 0) ? (size_t)len : 0;
+    }
+
+    // 4-byte length (large collections, strings, keywords)
+    if (tag == NIPPY_TYPE_VECTOR_LG || tag == NIPPY_TYPE_SET_LG ||
+        tag == NIPPY_TYPE_MAP_LG || tag == NIPPY_TYPE_LIST_LG ||
+        tag == NIPPY_TYPE_OBJECT_ARRAY_LG ||
+        tag == NIPPY_TYPE_STRING_LG || tag == NIPPY_TYPE_KEYWORD_LG) {
         int32_t len = buffer_read_int32_be(p->buffer);
         return (len >= 0) ? (size_t)len : 0;
     }
 
-    // _0 suffix means empty (length 0)
-    if ((tag & 0x03) == 0x00) {
-        return 0;
-    }
-    // _SM suffix means 1-byte length (signed)
-    else if ((tag & 0x03) == 0x01) {
-        int b = buffer_read_byte(p->buffer);
-        return (b >= 0) ? (size_t)b : 0;
-    }
-    // _MD suffix means 2-byte length
-    else if ((tag & 0x03) == 0x02) {
-        int16_t len = buffer_read_int16_be(p->buffer);
-        return (len >= 0) ? (size_t)len : 0;
-    }
-    // _LG suffix means 4-byte length
-    else {
-        int32_t len = buffer_read_int32_be(p->buffer);
-        return (len >= 0) ? (size_t)len : 0;
-    }
+    // Unknown type, return 0
+    return 0;
 }
 
 // Read string data
@@ -201,6 +233,11 @@ static bool parse_primitive(nippy_parser_t *p, uint8_t tag) {
     parse_event_t *ev = &p->current_event;
 
     switch (tag) {
+        case NIPPY_TYPE_NIL:
+            ev->type = EVENT_VALUE;
+            ev->value_type = VALUE_NIL;
+            return true;
+
         case NIPPY_TYPE_TRUE:
             ev->type = EVENT_VALUE;
             ev->value_type = VALUE_BOOL;
@@ -375,6 +412,96 @@ static void update_context(nippy_parser_t *p) {
     }
 }
 
+// Read and validate Nippy header (if present)
+// Returns true on success, false on error
+static bool read_nippy_header(nippy_parser_t *p) {
+    // Peek at first 4 bytes to check for header
+    int b1 = buffer_peek_byte(p->buffer);
+    if (b1 < 0) {
+        // Empty file or read error
+        p->header.present = false;
+        return true;
+    }
+
+    // Check for "NPY" signature
+    if (b1 != 0x4E) {  // 'N'
+        // No header, regular data starts immediately
+        p->header.present = false;
+        return true;
+    }
+
+    // Read potential header
+    uint8_t header_bytes[4];
+    header_bytes[0] = buffer_read_byte(p->buffer);
+    header_bytes[1] = buffer_read_byte(p->buffer);
+    header_bytes[2] = buffer_read_byte(p->buffer);
+    header_bytes[3] = buffer_read_byte(p->buffer);
+
+    // Verify "NPY" signature
+    if (header_bytes[0] != 0x4E || header_bytes[1] != 0x50 || header_bytes[2] != 0x59) {
+        snprintf(p->error_buffer, sizeof(p->error_buffer),
+                 "Invalid Nippy header signature");
+        return false;
+    }
+
+    // Parse metadata byte
+    uint8_t meta = header_bytes[3];
+    p->header.present = true;
+    p->header.version = 1;  // Current version
+    p->header.meta_byte = meta;
+
+    // Decode compression and encryption flags
+    // Based on nippy.clj head-meta mapping
+    switch (meta) {
+        case 0:  // No compression, no encryption
+            p->header.compressed = false;
+            p->header.encrypted = false;
+            break;
+
+        case 1:  // Snappy compression, no encryption
+        case 8:  // LZ4 compression, no encryption
+        case 11: // LZMA2 compression, no encryption
+        case 20: // ZSTD compression, no encryption
+        case 5:  // Other compression, no encryption
+            p->header.compressed = true;
+            p->header.encrypted = false;
+            snprintf(p->error_buffer, sizeof(p->error_buffer),
+                     "Compression not yet supported (meta byte: 0x%02X)", meta);
+            return false;
+
+        case 2:  // No compression, AES128-CBC-SHA512
+        case 14: // No compression, AES128-GCM-SHA512
+        case 4:  // No compression, other encryption
+        case 3:  // Snappy + encryption
+        case 7:  // Snappy + other encryption
+        case 9:  // LZ4 + AES128-CBC-SHA512
+        case 10: // LZ4 + other encryption
+        case 12: // LZMA2 + AES128-CBC-SHA512
+        case 13: // LZMA2 + other encryption
+        case 15: // Snappy + AES128-GCM-SHA512
+        case 16: // LZ4 + AES128-GCM-SHA512
+        case 17: // LZMA2 + AES128-GCM-SHA512
+        case 18: // Other compression + AES128-CBC-SHA512
+        case 19: // Other compression + AES128-GCM-SHA512
+        case 21: // ZSTD + AES128-CBC-SHA512
+        case 22: // ZSTD + AES128-GCM-SHA512
+        case 23: // ZSTD + other encryption
+        case 6:  // Other compression + other encryption
+            p->header.compressed = (meta != 2 && meta != 14 && meta != 4);
+            p->header.encrypted = true;
+            snprintf(p->error_buffer, sizeof(p->error_buffer),
+                     "Encryption not yet supported (meta byte: 0x%02X)", meta);
+            return false;
+
+        default:
+            snprintf(p->error_buffer, sizeof(p->error_buffer),
+                     "Unknown Nippy header metadata: 0x%02X", meta);
+            return false;
+    }
+
+    return true;
+}
+
 nippy_parser_t* nippy_parser_create(FILE *input, arena_t *arena) {
     assert(input != NULL);
     assert(arena != NULL);
@@ -397,6 +524,16 @@ nippy_parser_t* nippy_parser_create(FILE *input, arena_t *arena) {
     p->error_buffer[0] = '\0';
 
     memset(&p->current_event, 0, sizeof(parse_event_t));
+    memset(&p->header, 0, sizeof(nippy_header_t));
+
+    // Try to read Nippy header (if present)
+    if (!read_nippy_header(p)) {
+        // Header read failed - error already in buffer
+        fprintf(stderr, "Nippy header error: %s\n", p->error_buffer);
+        buffer_destroy(p->buffer);
+        free(p);
+        return NULL;
+    }
 
     return p;
 }
