@@ -678,6 +678,9 @@ const parse_event_t* nippy_parser_next_event(nippy_parser_t *p) {
                     is_map_type(tag) || is_list_type(tag)) {
                     size_t count = read_length_prefix(p, tag);
 
+                    // Update parent context before pushing new one
+                    update_context(p);
+
                     // Determine collection type and emit START event
                     if (is_vector_type(tag)) {
                         p->current_event.type = EVENT_START_VECTOR;
