@@ -15,6 +15,19 @@
 #define NIPPY_TYPE_FLOAT         0x3C  // float (60)
 #define NIPPY_TYPE_DOUBLE        0x3D  // double (61)
 
+// Optimized long types (positive/negative variants)
+#define NIPPY_TYPE_LONG_POS_SM   0x57  // long-pos-sm (87) - 1-byte positive
+#define NIPPY_TYPE_LONG_POS_MD   0x58  // long-pos-md (88) - 2-byte positive
+#define NIPPY_TYPE_LONG_POS_LG   0x59  // long-pos-lg (89) - 4-byte positive
+#define NIPPY_TYPE_LONG_NEG_SM   0x5D  // long-neg-sm (93) - 1-byte negative
+#define NIPPY_TYPE_LONG_NEG_MD   0x5E  // long-neg-md (94) - 2-byte negative
+#define NIPPY_TYPE_LONG_NEG_LG   0x5F  // long-neg-lg (95) - 4-byte negative
+
+// Optimized long types (deprecated, v3.3.0+)
+#define NIPPY_TYPE_LONG_SM_      0x64  // long-sm_ (100) - 1-byte signed
+#define NIPPY_TYPE_LONG_MD_      0x65  // long-md_ (101) - 2-byte signed
+#define NIPPY_TYPE_LONG_LG_      0x66  // long-lg_ (102) - 4-byte signed
+
 // String types (IDs from nippy.clj types-spec)
 #define NIPPY_TYPE_STRING_0      0x22  // 34 - str-0 (empty)
 #define NIPPY_TYPE_STRING_SM     0x60  // 96 - str-sm* (unsigned, 1-byte length)
@@ -304,6 +317,81 @@ static bool parse_primitive(nippy_parser_t *p, uint8_t tag) {
             ev->value_type = VALUE_INT64;
             ev->value.int_val = buffer_read_int64_be(p->buffer);
             return true;
+
+        // Optimized positive long types (unsigned reads)
+        case NIPPY_TYPE_LONG_POS_SM: {
+            uint8_t byte = buffer_read_byte(p->buffer);
+            ev->type = EVENT_VALUE;
+            ev->value_type = VALUE_INT64;
+            ev->value.int_val = byte;
+            return true;
+        }
+
+        case NIPPY_TYPE_LONG_POS_MD: {
+            uint16_t val = buffer_read_uint16_be(p->buffer);
+            ev->type = EVENT_VALUE;
+            ev->value_type = VALUE_INT64;
+            ev->value.int_val = val;
+            return true;
+        }
+
+        case NIPPY_TYPE_LONG_POS_LG: {
+            uint32_t val = buffer_read_uint32_be(p->buffer);
+            ev->type = EVENT_VALUE;
+            ev->value_type = VALUE_INT64;
+            ev->value.int_val = val;
+            return true;
+        }
+
+        // Optimized negative long types (unsigned read, then negate)
+        case NIPPY_TYPE_LONG_NEG_SM: {
+            uint8_t byte = buffer_read_byte(p->buffer);
+            ev->type = EVENT_VALUE;
+            ev->value_type = VALUE_INT64;
+            ev->value.int_val = -(int64_t)byte;
+            return true;
+        }
+
+        case NIPPY_TYPE_LONG_NEG_MD: {
+            uint16_t val = buffer_read_uint16_be(p->buffer);
+            ev->type = EVENT_VALUE;
+            ev->value_type = VALUE_INT64;
+            ev->value.int_val = -(int64_t)val;
+            return true;
+        }
+
+        case NIPPY_TYPE_LONG_NEG_LG: {
+            uint32_t val = buffer_read_uint32_be(p->buffer);
+            ev->type = EVENT_VALUE;
+            ev->value_type = VALUE_INT64;
+            ev->value.int_val = -(int64_t)val;
+            return true;
+        }
+
+        // Deprecated signed long types (v3.3.0+)
+        case NIPPY_TYPE_LONG_SM_: {
+            int8_t byte = buffer_read_byte(p->buffer);
+            ev->type = EVENT_VALUE;
+            ev->value_type = VALUE_INT64;
+            ev->value.int_val = byte;
+            return true;
+        }
+
+        case NIPPY_TYPE_LONG_MD_: {
+            int16_t val = buffer_read_int16_be(p->buffer);
+            ev->type = EVENT_VALUE;
+            ev->value_type = VALUE_INT64;
+            ev->value.int_val = val;
+            return true;
+        }
+
+        case NIPPY_TYPE_LONG_LG_: {
+            int32_t val = buffer_read_int32_be(p->buffer);
+            ev->type = EVENT_VALUE;
+            ev->value_type = VALUE_INT64;
+            ev->value.int_val = val;
+            return true;
+        }
 
         case NIPPY_TYPE_FLOAT: {
             int32_t bits = buffer_read_int32_be(p->buffer);
