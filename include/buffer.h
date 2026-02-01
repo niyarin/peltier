@@ -26,6 +26,10 @@ int16_t buffer_read_int16_be(buffer_t *buf);
 int32_t buffer_read_int32_be(buffer_t *buf);
 int64_t buffer_read_int64_be(buffer_t *buf);
 
+// Read unsigned multi-byte integers (big-endian)
+uint16_t buffer_read_uint16_be(buffer_t *buf);
+uint32_t buffer_read_uint32_be(buffer_t *buf);
+
 // Check if EOF reached
 bool buffer_eof(buffer_t *buf);
 

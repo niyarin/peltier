@@ -153,6 +153,25 @@ int64_t buffer_read_int64_be(buffer_t *buf) {
            ((int64_t)bytes[6] << 8) | (int64_t)bytes[7];
 }
 
+uint16_t buffer_read_uint16_be(buffer_t *buf) {
+    uint8_t bytes[2];
+    if (buffer_read_bytes(buf, bytes, 2) != 2) {
+        return 0;
+    }
+
+    return (uint16_t)((bytes[0] << 8) | bytes[1]);
+}
+
+uint32_t buffer_read_uint32_be(buffer_t *buf) {
+    uint8_t bytes[4];
+    if (buffer_read_bytes(buf, bytes, 4) != 4) {
+        return 0;
+    }
+
+    return (uint32_t)((bytes[0] << 24) | (bytes[1] << 16) |
+                      (bytes[2] << 8) | bytes[3]);
+}
+
 bool buffer_eof(buffer_t *buf) {
     assert(buf != NULL);
 

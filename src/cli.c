@@ -222,7 +222,7 @@ static int run_thaw(const cli_options_t *options) {
     }
 
     // Create arena allocator
-    arena_t *arena = arena_create(1024 * 1024);  // 1MB
+    arena_t *arena = arena_create(10 * 1024 * 1024);  // 10MB
     if (!arena) {
         fprintf(stderr, "Error: Failed to create memory arena\n");
         if (input != stdin) fclose(input);
