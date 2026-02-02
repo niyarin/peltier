@@ -37,6 +37,10 @@
 #define NIPPY_TYPE_KEYWORD_MD    0x55
 #define NIPPY_TYPE_KEYWORD_LG    0x4D
 
+// Symbol types
+#define NIPPY_TYPE_SYMBOL_SM     0x38
+#define NIPPY_TYPE_SYMBOL_MD     0x56
+
 // Collection types
 #define NIPPY_TYPE_VECTOR_0      0x11
 #define NIPPY_TYPE_VECTOR_SM     0x61
@@ -279,6 +283,21 @@ static bool write_keyword(nippy_writer_t *w, const char *kw) {
     }
 }
 
+// Write symbol with optimal encoding
+static bool write_symbol(nippy_writer_t *w, const char *sym) {
+    size_t len = strlen(sym);
+
+    if (len <= 255) {
+        return write_byte(w, NIPPY_TYPE_SYMBOL_SM) &&
+               write_byte(w, (uint8_t)len) &&
+               write_bytes(w, sym, len);
+    } else {
+        return write_byte(w, NIPPY_TYPE_SYMBOL_MD) &&
+               write_uint16_be(w, (uint16_t)len) &&
+               write_bytes(w, sym, len);
+    }
+}
+
 // Write collection start
 static bool write_collection_start(nippy_writer_t *w, collection_type_t type, size_t count) {
     uint8_t type_tag;
@@ -436,6 +455,11 @@ bool nippy_writer_write_event(nippy_writer_t *w, const parse_event_t *event) {
                     break;
 
                 case VALUE_SYMBOL:
+                    if (!write_symbol(w, event->value.string_val)) {
+                        return false;
+                    }
+                    break;
+
                 case VALUE_CHAR:
                     snprintf(w->error_buffer, sizeof(w->error_buffer),
                              "Unsupported value type for Nippy: %d", event->value_type);

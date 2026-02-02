@@ -40,6 +40,10 @@
 #define NIPPY_TYPE_KEYWORD_MD    0x55  // 85 - kw-md (2-byte length)
 #define NIPPY_TYPE_KEYWORD_LG    0x4D  // 77 - kw-md_ (4-byte length, buggy but still used)
 
+// Symbol types
+#define NIPPY_TYPE_SYMBOL_SM     0x38  // 56 - sym-sm (1-byte length)
+#define NIPPY_TYPE_SYMBOL_MD     0x56  // 86 - sym-md (2-byte length)
+
 // Collection types (IDs from nippy.clj types-spec)
 #define NIPPY_TYPE_VECTOR_0      0x11  // 17 - vec-0
 #define NIPPY_TYPE_VECTOR_SM     0x61  // 97 - vec-sm* (unsigned, 1-byte count)
@@ -152,6 +156,11 @@ static bool is_keyword_type(uint8_t tag) {
            tag == NIPPY_TYPE_KEYWORD_LG;
 }
 
+static bool is_symbol_type(uint8_t tag) {
+    return tag == NIPPY_TYPE_SYMBOL_SM ||
+           tag == NIPPY_TYPE_SYMBOL_MD;
+}
+
 static bool is_vector_type(uint8_t tag) {
     return tag == NIPPY_TYPE_VECTOR_0 ||
            tag == NIPPY_TYPE_VECTOR_SM ||
@@ -198,7 +207,7 @@ static size_t read_length_prefix(nippy_parser_t *p, uint8_t tag) {
         tag == NIPPY_TYPE_VECTOR_SM_ || tag == NIPPY_TYPE_SET_SM_ || tag == NIPPY_TYPE_MAP_SM_ ||
         tag == NIPPY_TYPE_LIST_SM ||
         tag == NIPPY_TYPE_STRING_SM || tag == NIPPY_TYPE_STRING_SM_ ||
-        tag == NIPPY_TYPE_KEYWORD_SM) {
+        tag == NIPPY_TYPE_KEYWORD_SM || tag == NIPPY_TYPE_SYMBOL_SM) {
         int b = buffer_read_byte(p->buffer);
         return (b >= 0) ? (size_t)((uint8_t)b) : 0;
     }
@@ -206,7 +215,8 @@ static size_t read_length_prefix(nippy_parser_t *p, uint8_t tag) {
     // 2-byte length (medium collections, strings, keywords)
     if (tag == NIPPY_TYPE_VECTOR_MD || tag == NIPPY_TYPE_SET_MD ||
         tag == NIPPY_TYPE_MAP_MD || tag == NIPPY_TYPE_LIST_MD ||
-        tag == NIPPY_TYPE_STRING_MD || tag == NIPPY_TYPE_KEYWORD_MD) {
+        tag == NIPPY_TYPE_STRING_MD || tag == NIPPY_TYPE_KEYWORD_MD ||
+        tag == NIPPY_TYPE_SYMBOL_MD) {
         int16_t len = buffer_read_int16_be(p->buffer);
         return (len >= 0) ? (size_t)len : 0;
     }
@@ -472,6 +482,17 @@ static bool parse_primitive(nippy_parser_t *p, uint8_t tag) {
                 }
                 ev->type = EVENT_VALUE;
                 ev->value_type = VALUE_KEYWORD;
+                ev->value.string_val = str;
+                return true;
+            }
+            else if (is_symbol_type(tag)) {
+                size_t len = read_length_prefix(p, tag);
+                char *str = read_string_data(p, len);
+                if (!str && len > 0) {
+                    return false;
+                }
+                ev->type = EVENT_VALUE;
+                ev->value_type = VALUE_SYMBOL;
                 ev->value.string_val = str;
                 return true;
             }

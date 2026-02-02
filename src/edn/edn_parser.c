@@ -19,6 +19,7 @@ typedef enum {
     TOKEN_DOUBLE,
     TOKEN_STRING,
     TOKEN_KEYWORD,
+    TOKEN_SYMBOL,
     TOKEN_LBRACKET,    // [
     TOKEN_RBRACKET,    // ]
     TOKEN_LBRACE,      // {
@@ -240,8 +241,9 @@ static bool read_symbol_or_keyword(edn_parser_t *p, token_t *token) {
         } else if (strcmp(p->token_buffer, "false") == 0) {
             token->type = TOKEN_FALSE;
         } else {
-            snprintf(p->error_buffer, sizeof(p->error_buffer), "Unknown symbol: %s", p->token_buffer);
-            return false;
+            // General symbol
+            token->type = TOKEN_SYMBOL;
+            token->str_value = arena_strdup(p->arena, p->token_buffer);
         }
     }
 
@@ -735,6 +737,18 @@ const parse_event_t* edn_parser_next_event(edn_parser_t *p) {
         case TOKEN_KEYWORD:
             p->current_event.type = (coll && coll->type == COLL_MAP && coll->is_map_key) ? EVENT_KEY : EVENT_VALUE;
             p->current_event.value_type = VALUE_KEYWORD;
+            p->current_event.value.string_val = token.str_value;
+            if (coll) {
+                coll->count++;
+                if (coll->type == COLL_MAP) {
+                    coll->is_map_key = !coll->is_map_key;
+                }
+            }
+            return &p->current_event;
+
+        case TOKEN_SYMBOL:
+            p->current_event.type = (coll && coll->type == COLL_MAP && coll->is_map_key) ? EVENT_KEY : EVENT_VALUE;
+            p->current_event.value_type = VALUE_SYMBOL;
             p->current_event.value.string_val = token.str_value;
             if (coll) {
                 coll->count++;
