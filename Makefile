@@ -37,10 +37,21 @@ $(TARGET): $(OBJ)
 
 clean:
 	rm -f $(OBJ) $(TARGET)
-	rm -f tests/*.o tests/test_*
+	rm -f test/test_roundtrip
 
-test: $(TARGET)
-	@echo "Tests not yet implemented"
+TEST_SRC = src/nippy/nippy_parser.c \
+           src/nippy/nippy_writer.c \
+           src/edn/edn_parser.c \
+           src/edn/edn_writer.c \
+           src/arena.c \
+           src/buffer.c \
+           src/utils.c
+
+test/test_roundtrip: test/test_roundtrip.c test/Unity/src/unity.c $(TEST_SRC)
+	$(CC) -std=c11 -Wall -Iinclude -I. -o $@ $^
+
+test: test/test_roundtrip
+	./test/test_roundtrip
 
 install: $(TARGET)
 	install -m 755 $(TARGET) /usr/local/bin/
