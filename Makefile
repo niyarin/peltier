@@ -13,8 +13,10 @@ endif
 
 SRC = src/cli.c \
       src/nippy/nippy_parser.c \
-      src/selector.c \
+      src/nippy/nippy_writer.c \
+      src/edn/edn_parser.c \
       src/edn/edn_writer.c \
+      src/selector.c \
       src/arena.c \
       src/buffer.c \
       src/utils.c

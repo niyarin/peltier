@@ -1,4 +1,6 @@
 #include "nippy/nippy_parser.h"
+#include "nippy/nippy_writer.h"
+#include "edn/edn_parser.h"
 #include "edn/edn_writer.h"
 #include "arena.h"
 #include <stdio.h>
@@ -32,7 +34,7 @@ static void print_usage(const char *program_name) {
     printf("\n");
     printf("Commands:\n");
     printf("  thaw        Convert Nippy binary format to EDN text format\n");
-    printf("  freeze      Convert EDN text format to Nippy binary format (not yet implemented)\n");
+    printf("  freeze      Convert EDN text format to Nippy binary format\n");
     printf("\n");
     printf("Global Options:\n");
     printf("  -h, --help     Show this help message\n");
@@ -44,7 +46,7 @@ static void print_usage(const char *program_name) {
     printf("  %s thaw input.nippy                    # Convert Nippy to EDN\n", program_name);
     printf("  %s thaw -p input.nippy                 # Pretty-print output\n", program_name);
     printf("  %s thaw -o output.edn input.nippy      # Write to file\n", program_name);
-    printf("  %s freeze input.edn -o output.nippy    # Convert EDN to Nippy (not yet implemented)\n", program_name);
+    printf("  %s freeze input.edn -o output.nippy    # Convert EDN to Nippy\n", program_name);
     printf("\n");
 }
 
@@ -72,8 +74,6 @@ static void print_freeze_usage(const char *program_name) {
     printf("Usage: %s freeze [OPTIONS] [INPUT_FILE]\n", program_name);
     printf("\n");
     printf("Convert EDN text format to Nippy binary format.\n");
-    printf("\n");
-    printf("Note: This command is not yet implemented.\n");
     printf("\n");
     printf("Options:\n");
     printf("  -o, --output FILE      Write output to FILE (default: stdout)\n");
@@ -288,13 +288,93 @@ static int run_thaw(const cli_options_t *options) {
     return exit_code;
 }
 
-// Freeze logic (EDN -> Nippy) - not yet implemented
+// Freeze logic (EDN -> Nippy)
 static int run_freeze(const cli_options_t *options) {
-    (void)options;  // Unused for now
+    int exit_code = 0;
 
-    fprintf(stderr, "Error: The 'freeze' command is not yet implemented.\n");
-    fprintf(stderr, "This will convert EDN to Nippy format in a future version.\n");
-    return 1;
+    // Open input file or use stdin
+    FILE *input = stdin;
+    if (options->input_filename) {
+        input = fopen(options->input_filename, "r");
+        if (!input) {
+            fprintf(stderr, "Error: Cannot open input file '%s'\n", options->input_filename);
+            return 1;
+        }
+    }
+
+    // Open output file or use stdout
+    FILE *output = stdout;
+    if (options->output_filename) {
+        output = fopen(options->output_filename, "wb");
+        if (!output) {
+            fprintf(stderr, "Error: Cannot open output file '%s'\n", options->output_filename);
+            if (input != stdin) fclose(input);
+            return 1;
+        }
+    }
+
+    // Create arena allocator
+    arena_t *arena = arena_create(10 * 1024 * 1024);  // 10MB
+    if (!arena) {
+        fprintf(stderr, "Error: Failed to create memory arena\n");
+        if (input != stdin) fclose(input);
+        if (output != stdout) fclose(output);
+        return 1;
+    }
+
+    // Create EDN parser
+    edn_parser_t *parser = edn_parser_create(input, arena);
+    if (!parser) {
+        fprintf(stderr, "Error: Failed to create EDN parser\n");
+        arena_destroy(arena);
+        if (input != stdin) fclose(input);
+        if (output != stdout) fclose(output);
+        return 1;
+    }
+
+    // Create Nippy writer
+    nippy_writer_t *writer = nippy_writer_create(output);
+    if (!writer) {
+        fprintf(stderr, "Error: Failed to create Nippy writer\n");
+        edn_parser_destroy(parser);
+        arena_destroy(arena);
+        if (input != stdin) fclose(input);
+        if (output != stdout) fclose(output);
+        return 1;
+    }
+
+    // Main processing loop
+    while (1) {
+        const parse_event_t *event = edn_parser_next_event(parser);
+
+        if (event->type == EVENT_EOF) {
+            break;
+        }
+
+        if (event->type == EVENT_ERROR) {
+            fprintf(stderr, "Parse error: %s\n",
+                    event->error_message ? event->error_message : "Unknown error");
+            exit_code = 1;
+            break;
+        }
+
+        // Write event to Nippy output
+        if (!nippy_writer_write_event(writer, event)) {
+            fprintf(stderr, "Write error: %s\n", nippy_writer_error(writer));
+            exit_code = 1;
+            break;
+        }
+    }
+
+    // Cleanup
+    nippy_writer_destroy(writer);
+    edn_parser_destroy(parser);
+    arena_destroy(arena);
+
+    if (input != stdin) fclose(input);
+    if (output != stdout) fclose(output);
+
+    return exit_code;
 }
 
 int main(int argc, char **argv) {
