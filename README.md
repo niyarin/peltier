@@ -28,3 +28,6 @@ peltier freeze input.edn > output.nippy
 ```
 make
 ```
+
+## License
+[MIT](https://github.com/niyarin/peltier/blob/main/LICENSE)
