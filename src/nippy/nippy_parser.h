@@ -12,6 +12,12 @@ typedef struct nippy_parser nippy_parser_t;
 // Create parser with input stream
 nippy_parser_t* nippy_parser_create(FILE *input, arena_t *arena);
 
+#ifdef USE_LZ4
+// Create parser from byte array (for decompressed data)
+// Only available when USE_LZ4 is defined
+nippy_parser_t* nippy_parser_create_from_bytes(const uint8_t *data, size_t size, arena_t *arena);
+#endif
+
 // Get next event (returns pointer to internal event, do not free)
 const parse_event_t* nippy_parser_next_event(nippy_parser_t *parser);
 

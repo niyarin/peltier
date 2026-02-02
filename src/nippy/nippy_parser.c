@@ -107,6 +107,12 @@ struct nippy_parser {
 
     // Error message
     char error_buffer[256];
+
+#ifdef USE_LZ4
+    // Memory stream (NULL if using external FILE*)
+    // Only used for create_from_bytes
+    FILE *mem_stream;
+#endif
 };
 
 // Stack operations
@@ -610,6 +616,9 @@ nippy_parser_t* nippy_parser_create(FILE *input, arena_t *arena) {
     p->state = STATE_READ_TYPE_TAG;
     p->current_tag = 0;
     p->error_buffer[0] = '\0';
+#ifdef USE_LZ4
+    p->mem_stream = NULL;  // No memory stream for external FILE*
+#endif
 
     memset(&p->current_event, 0, sizeof(parse_event_t));
     memset(&p->header, 0, sizeof(nippy_header_t));
@@ -625,6 +634,32 @@ nippy_parser_t* nippy_parser_create(FILE *input, arena_t *arena) {
 
     return p;
 }
+
+#ifdef USE_LZ4
+nippy_parser_t* nippy_parser_create_from_bytes(const uint8_t *data, size_t size, arena_t *arena) {
+    assert(data != NULL);
+    assert(arena != NULL);
+
+    // Create memory stream from byte array
+    // Note: fmemopen expects non-const pointer, but it won't modify data in "rb" mode
+    FILE *mem_stream = fmemopen((void*)data, size, "rb");
+    if (!mem_stream) {
+        return NULL;
+    }
+
+    // Create parser using the memory stream
+    nippy_parser_t *p = nippy_parser_create(mem_stream, arena);
+    if (!p) {
+        fclose(mem_stream);
+        return NULL;
+    }
+
+    // Store memory stream so it can be closed in destroy
+    p->mem_stream = mem_stream;
+
+    return p;
+}
+#endif
 
 const parse_event_t* nippy_parser_next_event(nippy_parser_t *p) {
     assert(p != NULL);
@@ -749,5 +784,13 @@ void nippy_parser_destroy(nippy_parser_t *p) {
     }
 
     buffer_destroy(p->buffer);
+
+#ifdef USE_LZ4
+    // Close memory stream if we created one
+    if (p->mem_stream) {
+        fclose(p->mem_stream);
+    }
+#endif
+
     free(p);
 }
