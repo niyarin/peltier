@@ -65,10 +65,6 @@ static void write_separator(edn_writer_t *w) {
         collection_state_t *state = &w->collection_stack[w->collection_depth - 1];
 
         if (!state->first_element) {
-            if (state->type == COLLECTION_MAP && !state->expecting_value) {
-                write_char(w, ',');
-            }
-
             // Always write space between elements (EDN requires it)
             write_char(w, ' ');
         }
