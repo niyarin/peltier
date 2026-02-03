@@ -147,6 +147,14 @@ void test_double_negative(void) {
     test_roundtrip_file("test-resources/primitive-edns/double-negative.edn");
 }
 
+void test_double_scientific(void) {
+    test_roundtrip_file("test-resources/primitive-edns/double-scientific.edn");
+}
+
+void test_double_scientific_pos(void) {
+    test_roundtrip_file("test-resources/primitive-edns/double-scientific-pos.edn");
+}
+
 void test_string(void) {
     test_roundtrip_file("test-resources/primitive-edns/string.edn");
 }
@@ -221,6 +229,8 @@ int main(void) {
     RUN_TEST(test_integer_zero);
     RUN_TEST(test_double);
     RUN_TEST(test_double_negative);
+    RUN_TEST(test_double_scientific);
+    RUN_TEST(test_double_scientific_pos);
 
     // Strings
     RUN_TEST(test_string);
