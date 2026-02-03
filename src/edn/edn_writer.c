@@ -48,6 +48,43 @@ static void write_string(edn_writer_t *w, const char *s) {
     }
 }
 
+// Write escaped EDN string directly to buffer (avoids malloc/free)
+static void write_escaped_string(edn_writer_t *w, const char *str, size_t len) {
+    write_char(w, '"');
+
+    for (size_t i = 0; i < len; i++) {
+        char c = str[i];
+
+        switch (c) {
+            case '"':
+                write_char(w, '\\');
+                write_char(w, '"');
+                break;
+            case '\\':
+                write_char(w, '\\');
+                write_char(w, '\\');
+                break;
+            case '\n':
+                write_char(w, '\\');
+                write_char(w, 'n');
+                break;
+            case '\r':
+                write_char(w, '\\');
+                write_char(w, 'r');
+                break;
+            case '\t':
+                write_char(w, '\\');
+                write_char(w, 't');
+                break;
+            default:
+                write_char(w, c);
+                break;
+        }
+    }
+
+    write_char(w, '"');
+}
+
 static void write_indent(edn_writer_t *w) {
     if (!w->pretty_print) {
         return;
@@ -221,12 +258,8 @@ void edn_writer_write_event(edn_writer_t *w, const parse_event_t *event) {
 
                 case VALUE_STRING: {
                     if (event->value.string_val) {
-                        char *escaped = escape_edn_string(event->value.string_val,
-                                                          strlen(event->value.string_val));
-                        if (escaped) {
-                            write_string(w, escaped);
-                            free(escaped);
-                        }
+                        write_escaped_string(w, event->value.string_val,
+                                            strlen(event->value.string_val));
                     } else {
                         write_string(w, "\"\"");
                     }
