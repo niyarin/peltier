@@ -81,6 +81,124 @@
 #define NIPPY_TYPE_UTIL_DATE    0x5A  // java.util.Date (8 bytes) (90)
 #define NIPPY_TYPE_UUID         0x5B  // UUID (16 bytes) (91)
 
+//=============================================================================
+// Lookup table for fast type dispatch
+//=============================================================================
+typedef enum {
+    CAT_UNKNOWN = 0,
+    CAT_NIL,
+    CAT_TRUE,
+    CAT_FALSE,
+    CAT_LONG,
+    CAT_FLOAT,
+    CAT_DOUBLE,
+    CAT_CHAR,
+    CAT_STRING,
+    CAT_KEYWORD,
+    CAT_SYMBOL,
+    CAT_VECTOR,
+    CAT_SET,
+    CAT_MAP,
+    CAT_LIST,
+    CAT_DATE,
+    CAT_UUID
+} tag_category_t;
+
+// Combined info: category (4 bits) + length_size (4 bits)
+// length_size: 0=none, 1=1byte, 2=2bytes, 4=4bytes, 8=8bytes
+typedef struct {
+    uint8_t category;
+    uint8_t length_size;
+    uint8_t data_size;    // Fixed data size (for integers, etc.), 0 = variable
+    uint8_t flags;        // Reserved for future use
+} tag_info_t;
+
+#define TAG_INFO(cat, len, data) { CAT_##cat, len, data, 0 }
+#define TAG_UNKNOWN_INFO { CAT_UNKNOWN, 0, 0, 0 }
+
+static const tag_info_t TAG_LOOKUP[256] = {
+    // 0x00 - 0x0F
+    [0x00] = TAG_INFO(LONG, 0, 0),      // long-0
+    [0x03] = TAG_INFO(NIL, 0, 0),       // nil
+    [0x08] = TAG_INFO(TRUE, 0, 0),      // true
+    [0x09] = TAG_INFO(FALSE, 0, 0),     // false
+    [0x0A] = TAG_INFO(CHAR, 0, 2),      // char (2 bytes)
+    [0x0D] = TAG_INFO(STRING, 4, 0),    // str-lg
+
+    // 0x10 - 0x1F
+    [0x10] = TAG_INFO(STRING, 2, 0),    // str-md
+    [0x11] = TAG_INFO(VECTOR, 0, 0),    // vec-0
+    [0x12] = TAG_INFO(SET, 0, 0),       // set-0
+    [0x13] = TAG_INFO(MAP, 0, 0),       // map-0
+    [0x14] = TAG_INFO(LIST, 4, 0),      // list-lg
+    [0x15] = TAG_INFO(VECTOR, 4, 0),    // vec-lg
+    [0x17] = TAG_INFO(SET, 4, 0),       // set-lg
+    [0x1E] = TAG_INFO(MAP, 4, 0),       // map-lg
+
+    // 0x20 - 0x2F
+    [0x20] = TAG_INFO(SET, 2, 0),       // set-md
+    [0x21] = TAG_INFO(MAP, 2, 0),       // map-md
+    [0x22] = TAG_INFO(STRING, 0, 0),    // str-0
+    [0x23] = TAG_INFO(LIST, 0, 0),      // list-0
+    [0x24] = TAG_INFO(LIST, 1, 0),      // list-sm
+    [0x28] = TAG_INFO(LONG, 0, 1),      // byte
+    [0x29] = TAG_INFO(LONG, 0, 2),      // short
+    [0x2A] = TAG_INFO(LONG, 0, 4),      // int
+    [0x2B] = TAG_INFO(LONG, 0, 8),      // long-xl
+
+    // 0x30 - 0x3F
+    [0x36] = TAG_INFO(LIST, 2, 0),      // list-md
+    [0x38] = TAG_INFO(SYMBOL, 1, 0),    // sym-sm
+    [0x3C] = TAG_INFO(FLOAT, 0, 4),     // float
+    [0x3D] = TAG_INFO(DOUBLE, 0, 8),    // double
+
+    // 0x40 - 0x4F
+    [0x45] = TAG_INFO(VECTOR, 2, 0),    // vec-md
+    [0x4D] = TAG_INFO(KEYWORD, 4, 0),   // kw-lg
+
+    // 0x50 - 0x5F
+    [0x55] = TAG_INFO(KEYWORD, 2, 0),   // kw-md
+    [0x56] = TAG_INFO(SYMBOL, 2, 0),    // sym-md
+    [0x57] = TAG_INFO(LONG, 0, 1),      // long-pos-sm
+    [0x58] = TAG_INFO(LONG, 0, 2),      // long-pos-md
+    [0x59] = TAG_INFO(LONG, 0, 4),      // long-pos-lg
+    [0x5A] = TAG_INFO(DATE, 0, 8),      // util.Date
+    [0x5B] = TAG_INFO(UUID, 0, 16),     // UUID
+    [0x5D] = TAG_INFO(LONG, 0, 1),      // long-neg-sm
+    [0x5E] = TAG_INFO(LONG, 0, 2),      // long-neg-md
+    [0x5F] = TAG_INFO(LONG, 0, 4),      // long-neg-lg
+
+    // 0x60 - 0x6F
+    [0x60] = TAG_INFO(STRING, 1, 0),    // str-sm
+    [0x61] = TAG_INFO(VECTOR, 1, 0),    // vec-sm
+    [0x62] = TAG_INFO(SET, 1, 0),       // set-sm
+    [0x63] = TAG_INFO(MAP, 1, 0),       // map-sm
+    [0x64] = TAG_INFO(LONG, 0, 1),      // long-sm_ (signed)
+    [0x65] = TAG_INFO(LONG, 0, 2),      // long-md_ (signed)
+    [0x66] = TAG_INFO(LONG, 0, 4),      // long-lg_ (signed)
+    [0x69] = TAG_INFO(STRING, 1, 0),    // str-sm_
+    [0x6A] = TAG_INFO(KEYWORD, 1, 0),   // kw-sm
+    [0x6E] = TAG_INFO(VECTOR, 1, 0),    // vec-sm_
+    [0x6F] = TAG_INFO(SET, 1, 0),       // set-sm_
+
+    // 0x70 - 0x7F
+    [0x70] = TAG_INFO(MAP, 1, 0),       // map-sm_
+    [0x73] = TAG_INFO(VECTOR, 4, 0),    // object-array-lg
+};
+
+// Fast lookup macros
+#define TAG_CATEGORY(tag)     (TAG_LOOKUP[tag].category)
+#define TAG_LENGTH_SIZE(tag)  (TAG_LOOKUP[tag].length_size)
+#define TAG_DATA_SIZE(tag)    (TAG_LOOKUP[tag].data_size)
+
+#define IS_STRING_TYPE(tag)   (TAG_CATEGORY(tag) == CAT_STRING)
+#define IS_KEYWORD_TYPE(tag)  (TAG_CATEGORY(tag) == CAT_KEYWORD)
+#define IS_SYMBOL_TYPE(tag)   (TAG_CATEGORY(tag) == CAT_SYMBOL)
+#define IS_VECTOR_TYPE(tag)   (TAG_CATEGORY(tag) == CAT_VECTOR)
+#define IS_SET_TYPE(tag)      (TAG_CATEGORY(tag) == CAT_SET)
+#define IS_MAP_TYPE(tag)      (TAG_CATEGORY(tag) == CAT_MAP)
+#define IS_LIST_TYPE(tag)     (TAG_CATEGORY(tag) == CAT_LIST)
+
 // Parser structure with PDA stack
 // Nippy header info
 typedef struct {
@@ -141,97 +259,28 @@ static parse_context_t* current_context(nippy_parser_t *p) {
     return &p->stack[p->stack_depth - 1];
 }
 
-// Type checking helpers
-static bool is_string_type(uint8_t tag) {
-    return tag == NIPPY_TYPE_STRING_0 ||
-           tag == NIPPY_TYPE_STRING_SM ||
-           tag == NIPPY_TYPE_STRING_MD ||
-           tag == NIPPY_TYPE_STRING_LG ||
-           tag == NIPPY_TYPE_STRING_SM_;
-}
+// Read length prefix using lookup table
+static inline size_t read_length_prefix(nippy_parser_t *p, uint8_t tag) {
+    uint8_t len_size = TAG_LENGTH_SIZE(tag);
 
-static bool is_keyword_type(uint8_t tag) {
-    return tag == NIPPY_TYPE_KEYWORD_SM ||
-           tag == NIPPY_TYPE_KEYWORD_MD ||
-           tag == NIPPY_TYPE_KEYWORD_LG;
-}
-
-static bool is_symbol_type(uint8_t tag) {
-    return tag == NIPPY_TYPE_SYMBOL_SM ||
-           tag == NIPPY_TYPE_SYMBOL_MD;
-}
-
-static bool is_vector_type(uint8_t tag) {
-    return tag == NIPPY_TYPE_VECTOR_0 ||
-           tag == NIPPY_TYPE_VECTOR_SM ||
-           tag == NIPPY_TYPE_VECTOR_MD ||
-           tag == NIPPY_TYPE_VECTOR_LG ||
-           tag == NIPPY_TYPE_VECTOR_SM_ ||
-           tag == NIPPY_TYPE_OBJECT_ARRAY_LG;
-}
-
-static bool is_set_type(uint8_t tag) {
-    return tag == NIPPY_TYPE_SET_0 ||
-           tag == NIPPY_TYPE_SET_SM ||
-           tag == NIPPY_TYPE_SET_MD ||
-           tag == NIPPY_TYPE_SET_LG ||
-           tag == NIPPY_TYPE_SET_SM_;
-}
-
-static bool is_map_type(uint8_t tag) {
-    return tag == NIPPY_TYPE_MAP_0 ||
-           tag == NIPPY_TYPE_MAP_SM ||
-           tag == NIPPY_TYPE_MAP_MD ||
-           tag == NIPPY_TYPE_MAP_LG ||
-           tag == NIPPY_TYPE_MAP_SM_;
-}
-
-static bool is_list_type(uint8_t tag) {
-    return tag == NIPPY_TYPE_LIST_0 ||
-           tag == NIPPY_TYPE_LIST_SM ||
-           tag == NIPPY_TYPE_LIST_MD ||
-           tag == NIPPY_TYPE_LIST_LG;
-}
-
-// Read length prefix based on type tag
-static size_t read_length_prefix(nippy_parser_t *p, uint8_t tag) {
-    // Empty collections (length 0)
-    if (tag == NIPPY_TYPE_VECTOR_0 || tag == NIPPY_TYPE_SET_0 ||
-        tag == NIPPY_TYPE_MAP_0 || tag == NIPPY_TYPE_LIST_0 ||
-        tag == NIPPY_TYPE_STRING_0) {
-        return 0;
+    switch (len_size) {
+        case 0:
+            return 0;
+        case 1: {
+            int b = buffer_read_byte(p->buffer);
+            return (b >= 0) ? (size_t)((uint8_t)b) : 0;
+        }
+        case 2: {
+            int16_t len = buffer_read_int16_be(p->buffer);
+            return (len >= 0) ? (size_t)len : 0;
+        }
+        case 4: {
+            int32_t len = buffer_read_int32_be(p->buffer);
+            return (len >= 0) ? (size_t)len : 0;
+        }
+        default:
+            return 0;
     }
-
-    // 1-byte length (strings, keywords, small collections)
-    if (tag == NIPPY_TYPE_VECTOR_SM || tag == NIPPY_TYPE_SET_SM || tag == NIPPY_TYPE_MAP_SM ||
-        tag == NIPPY_TYPE_VECTOR_SM_ || tag == NIPPY_TYPE_SET_SM_ || tag == NIPPY_TYPE_MAP_SM_ ||
-        tag == NIPPY_TYPE_LIST_SM ||
-        tag == NIPPY_TYPE_STRING_SM || tag == NIPPY_TYPE_STRING_SM_ ||
-        tag == NIPPY_TYPE_KEYWORD_SM || tag == NIPPY_TYPE_SYMBOL_SM) {
-        int b = buffer_read_byte(p->buffer);
-        return (b >= 0) ? (size_t)((uint8_t)b) : 0;
-    }
-
-    // 2-byte length (medium collections, strings, keywords)
-    if (tag == NIPPY_TYPE_VECTOR_MD || tag == NIPPY_TYPE_SET_MD ||
-        tag == NIPPY_TYPE_MAP_MD || tag == NIPPY_TYPE_LIST_MD ||
-        tag == NIPPY_TYPE_STRING_MD || tag == NIPPY_TYPE_KEYWORD_MD ||
-        tag == NIPPY_TYPE_SYMBOL_MD) {
-        int16_t len = buffer_read_int16_be(p->buffer);
-        return (len >= 0) ? (size_t)len : 0;
-    }
-
-    // 4-byte length (large collections, strings, keywords)
-    if (tag == NIPPY_TYPE_VECTOR_LG || tag == NIPPY_TYPE_SET_LG ||
-        tag == NIPPY_TYPE_MAP_LG || tag == NIPPY_TYPE_LIST_LG ||
-        tag == NIPPY_TYPE_OBJECT_ARRAY_LG ||
-        tag == NIPPY_TYPE_STRING_LG || tag == NIPPY_TYPE_KEYWORD_LG) {
-        int32_t len = buffer_read_int32_be(p->buffer);
-        return (len >= 0) ? (size_t)len : 0;
-    }
-
-    // Unknown type, return 0
-    return 0;
 }
 
 // Read string data
@@ -463,7 +512,7 @@ static bool parse_primitive(nippy_parser_t *p, uint8_t tag) {
         }
 
         default:
-            if (is_string_type(tag)) {
+            if (IS_STRING_TYPE(tag)) {
                 size_t len = read_length_prefix(p, tag);
                 char *str = read_string_data(p, len);
                 if (!str && len > 0) {
@@ -474,7 +523,7 @@ static bool parse_primitive(nippy_parser_t *p, uint8_t tag) {
                 ev->value.string_val = str;
                 return true;
             }
-            else if (is_keyword_type(tag)) {
+            else if (IS_KEYWORD_TYPE(tag)) {
                 size_t len = read_length_prefix(p, tag);
                 char *str = read_string_data(p, len);
                 if (!str && len > 0) {
@@ -485,7 +534,7 @@ static bool parse_primitive(nippy_parser_t *p, uint8_t tag) {
                 ev->value.string_val = str;
                 return true;
             }
-            else if (is_symbol_type(tag)) {
+            else if (IS_SYMBOL_TYPE(tag)) {
                 size_t len = read_length_prefix(p, tag);
                 char *str = read_string_data(p, len);
                 if (!str && len > 0) {
@@ -730,24 +779,24 @@ const parse_event_t* nippy_parser_next_event(nippy_parser_t *p) {
                 p->current_tag = tag;
 
                 // Check if it's a collection type
-                if (is_vector_type(tag) || is_set_type(tag) ||
-                    is_map_type(tag) || is_list_type(tag)) {
+                if (IS_VECTOR_TYPE(tag) || IS_SET_TYPE(tag) ||
+                    IS_MAP_TYPE(tag) || IS_LIST_TYPE(tag)) {
                     size_t count = read_length_prefix(p, tag);
 
                     // Update parent context before pushing new one
                     update_context(p);
 
                     // Determine collection type and emit START event
-                    if (is_vector_type(tag)) {
+                    if (IS_VECTOR_TYPE(tag)) {
                         p->current_event.type = EVENT_START_VECTOR;
                         push_context(p, CONTEXT_VECTOR, count);
-                    } else if (is_set_type(tag)) {
+                    } else if (IS_SET_TYPE(tag)) {
                         p->current_event.type = EVENT_START_SET;
                         push_context(p, CONTEXT_SET, count);
-                    } else if (is_map_type(tag)) {
+                    } else if (IS_MAP_TYPE(tag)) {
                         p->current_event.type = EVENT_START_MAP;
                         push_context(p, CONTEXT_MAP_KEY, count);
-                    } else if (is_list_type(tag)) {
+                    } else if (IS_LIST_TYPE(tag)) {
                         p->current_event.type = EVENT_START_LIST;
                         push_context(p, CONTEXT_LIST, count);
                     }
