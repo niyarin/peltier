@@ -17,18 +17,15 @@
 #define NIPPY_TYPE_FLOAT         0x3C
 #define NIPPY_TYPE_DOUBLE        0x3D
 
-// Optimized long types
+// Optimized long types (using v3.3.0+ signed types)
 #define NIPPY_TYPE_LONG_0        0x00
-#define NIPPY_TYPE_LONG_POS_SM   0x57
-#define NIPPY_TYPE_LONG_POS_MD   0x58
-#define NIPPY_TYPE_LONG_POS_LG   0x59
-#define NIPPY_TYPE_LONG_NEG_SM   0x5D
-#define NIPPY_TYPE_LONG_NEG_MD   0x5E
-#define NIPPY_TYPE_LONG_NEG_LG   0x5F
+#define NIPPY_TYPE_LONG_SM       0x64  // long-sm_ (v3.3.0+ signed 1-byte)
+#define NIPPY_TYPE_LONG_MD       0x65  // long-md_ (v3.3.0+ signed 2-byte)
+#define NIPPY_TYPE_LONG_LG       0x66  // long-lg_ (v3.3.0+ signed 4-byte)
 
 // String types
 #define NIPPY_TYPE_STRING_0      0x22
-#define NIPPY_TYPE_STRING_SM     0x60
+#define NIPPY_TYPE_STRING_SM     0x69  // str-sm_ (v3.3.0+ signed length)
 #define NIPPY_TYPE_STRING_MD     0x10
 #define NIPPY_TYPE_STRING_LG     0x0D
 
@@ -41,19 +38,19 @@
 #define NIPPY_TYPE_SYMBOL_SM     0x38
 #define NIPPY_TYPE_SYMBOL_MD     0x56
 
-// Collection types
+// Collection types (using v3.3.0+ signed count types for SM)
 #define NIPPY_TYPE_VECTOR_0      0x11
-#define NIPPY_TYPE_VECTOR_SM     0x61
+#define NIPPY_TYPE_VECTOR_SM     0x6E  // vec-sm_ (v3.3.0+ signed count)
 #define NIPPY_TYPE_VECTOR_MD     0x45
 #define NIPPY_TYPE_VECTOR_LG     0x15
 
 #define NIPPY_TYPE_SET_0         0x12
-#define NIPPY_TYPE_SET_SM        0x62
+#define NIPPY_TYPE_SET_SM        0x6F  // set-sm_ (v3.3.0+ signed count)
 #define NIPPY_TYPE_SET_MD        0x20
 #define NIPPY_TYPE_SET_LG        0x17
 
 #define NIPPY_TYPE_MAP_0         0x13
-#define NIPPY_TYPE_MAP_SM        0x63
+#define NIPPY_TYPE_MAP_SM        0x70  // map-sm_ (v3.3.0+ signed count)
 #define NIPPY_TYPE_MAP_MD        0x21
 #define NIPPY_TYPE_MAP_LG        0x1E
 
@@ -197,41 +194,23 @@ static bool write_header(nippy_writer_t *w) {
     return true;
 }
 
-// Write integer with optimal encoding
+// Write integer with optimal encoding (using v3.3.0+ signed types)
 static bool write_integer(nippy_writer_t *w, int64_t value) {
     // Special case: zero
     if (value == 0) {
         return write_byte(w, NIPPY_TYPE_LONG_0);
     }
 
-    // Positive values
-    if (value > 0) {
-        if (value <= 255) {
-            return write_byte(w, NIPPY_TYPE_LONG_POS_SM) &&
-                   write_byte(w, (uint8_t)value);
-        } else if (value <= 65535) {
-            return write_byte(w, NIPPY_TYPE_LONG_POS_MD) &&
-                   write_uint16_be(w, (uint16_t)value);
-        } else if (value <= 4294967295LL) {
-            return write_byte(w, NIPPY_TYPE_LONG_POS_LG) &&
-                   write_uint32_be(w, (uint32_t)value);
-        } else {
-            return write_byte(w, NIPPY_TYPE_LONG) &&
-                   write_int64_be(w, value);
-        }
-    }
-
-    // Negative values
-    int64_t abs_val = -value;
-    if (abs_val <= 255) {
-        return write_byte(w, NIPPY_TYPE_LONG_NEG_SM) &&
-               write_byte(w, (uint8_t)abs_val);
-    } else if (abs_val <= 65535) {
-        return write_byte(w, NIPPY_TYPE_LONG_NEG_MD) &&
-               write_uint16_be(w, (uint16_t)abs_val);
-    } else if (abs_val <= 4294967295LL) {
-        return write_byte(w, NIPPY_TYPE_LONG_NEG_LG) &&
-               write_uint32_be(w, (uint32_t)abs_val);
+    // Use signed types for optimal encoding
+    if (value >= -128 && value <= 127) {
+        return write_byte(w, NIPPY_TYPE_LONG_SM) &&
+               write_byte(w, (uint8_t)(int8_t)value);
+    } else if (value >= -32768 && value <= 32767) {
+        return write_byte(w, NIPPY_TYPE_LONG_MD) &&
+               write_uint16_be(w, (uint16_t)(int16_t)value);
+    } else if (value >= -2147483648LL && value <= 2147483647LL) {
+        return write_byte(w, NIPPY_TYPE_LONG_LG) &&
+               write_uint32_be(w, (uint32_t)(int32_t)value);
     } else {
         return write_byte(w, NIPPY_TYPE_LONG) &&
                write_int64_be(w, value);

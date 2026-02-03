@@ -171,6 +171,7 @@ static bool read_string(edn_parser_t *p, token_t *token) {
 static bool read_number(edn_parser_t *p, token_t *token) {
     size_t pos = 0;
     bool is_double = false;
+    bool after_exponent = false;
 
     // Handle negative sign
     if (peek_char(p) == '-') {
@@ -178,13 +179,30 @@ static bool read_number(edn_parser_t *p, token_t *token) {
         consume_char(p);
     }
 
-    // Read digits
-    while (isdigit(peek_char(p)) || peek_char(p) == '.' || peek_char(p) == 'e' || peek_char(p) == 'E') {
-        if (peek_char(p) == '.' || peek_char(p) == 'e' || peek_char(p) == 'E') {
+    // Read digits, decimal point, and exponent
+    while (1) {
+        int c = peek_char(p);
+
+        if (isdigit(c)) {
+            p->token_buffer[pos++] = c;
+            consume_char(p);
+        } else if (c == '.') {
             is_double = true;
+            p->token_buffer[pos++] = c;
+            consume_char(p);
+        } else if (c == 'e' || c == 'E') {
+            is_double = true;
+            after_exponent = true;
+            p->token_buffer[pos++] = c;
+            consume_char(p);
+        } else if ((c == '+' || c == '-') && after_exponent) {
+            // Handle sign after exponent (e.g., 1.5E-4 or 1.5E+4)
+            p->token_buffer[pos++] = c;
+            consume_char(p);
+            after_exponent = false;  // Only allow one sign after exponent
+        } else {
+            break;
         }
-        p->token_buffer[pos++] = peek_char(p);
-        consume_char(p);
 
         if (pos >= MAX_TOKEN_SIZE - 1) {
             snprintf(p->error_buffer, sizeof(p->error_buffer), "Number too long");
