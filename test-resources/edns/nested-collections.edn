@@ -1,0 +1,5 @@
+{:vectors [[1 2 3] [4 [5 6] 7] []]
+ :maps {:a {:b {:c 1}} :d {}}
+ :sets #{#{1 2} #{3 #{4 5}}}
+ :lists ((1 2) (3 (4 5)) ())
+ :mixed {:vec [1 {:inner "value"}] :set #{:a :b}}}

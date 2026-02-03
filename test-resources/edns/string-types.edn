@@ -1,0 +1,7 @@
+{:empty ""
+ :short "abc"
+ :medium "The quick brown fox jumps over the lazy dog"
+ :escaped "line1\nline2\ttab\"quote\\"
+ :unicode "日本語テスト"
+ :keywords [:simple :ns/qualified :_underscore]
+ :symbols [foo bar/baz +special+]}

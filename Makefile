@@ -37,7 +37,7 @@ $(TARGET): $(OBJ)
 
 clean:
 	rm -f $(OBJ) $(TARGET)
-	rm -f test/test_roundtrip
+	rm -f test/test_roundtrip test/test_regression
 
 TEST_SRC = src/nippy/nippy_parser.c \
            src/nippy/nippy_writer.c \
@@ -47,13 +47,31 @@ TEST_SRC = src/nippy/nippy_parser.c \
            src/buffer.c \
            src/utils.c
 
-test/test_roundtrip: test/test_roundtrip.c test/Unity/src/unity.c $(TEST_SRC)
+UNITY_SRC = test/Unity/src/unity.c
+
+test/test_roundtrip: test/test_roundtrip.c $(UNITY_SRC) $(TEST_SRC)
 	$(CC) -std=c11 -Wall -Iinclude -I. -o $@ $^
 
-test: test/test_roundtrip
+test/test_regression: test/test_regression.c $(UNITY_SRC) $(TEST_SRC)
+	$(CC) -std=c11 -Wall -Iinclude -I. -o $@ $^
+
+# Run all tests
+test: test/test_roundtrip test/test_regression
+	@echo "=== Running roundtrip tests ==="
 	./test/test_roundtrip
+	@echo ""
+	@echo "=== Running regression tests ==="
+	./test/test_regression
+
+# Run only roundtrip tests
+test-roundtrip: test/test_roundtrip
+	./test/test_roundtrip
+
+# Run only regression tests
+test-regression: test/test_regression
+	./test/test_regression
 
 install: $(TARGET)
 	install -m 755 $(TARGET) /usr/local/bin/
 
-.PHONY: all clean test install
+.PHONY: all clean test test-roundtrip test-regression install
