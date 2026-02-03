@@ -31,3 +31,7 @@ make
 
 ## License
 [MIT](https://github.com/niyarin/peltier/blob/main/LICENSE)
+
+## TODO / Known Issues
+- [ ] Compression support
+- [ ] Encryption support
