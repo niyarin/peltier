@@ -4,7 +4,7 @@
 #include <string.h>
 #include <assert.h>
 
-#define WRITE_BUFFER_SIZE 8192
+#define WRITE_BUFFER_SIZE 16384
 
 typedef enum {
     COLLECTION_VECTOR,
