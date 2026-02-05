@@ -42,9 +42,19 @@ static void write_char(edn_writer_t *w, char c) {
     w->buffer[w->buffer_pos++] = c;
 }
 
+
 static void write_string(edn_writer_t *w, const char *s) {
     while (*s) {
         write_char(w, *s++);
+    }
+}
+
+static void write_string_fast(edn_writer_t *w, const char *s, size_t len) {
+    if (w->buffer_pos + len >= WRITE_BUFFER_SIZE){
+        write_string(w, s);
+    }else{
+        memcpy(&(w->buffer[w->buffer_pos]), s, len);
+        w->buffer_pos += len;
     }
 }
 
@@ -244,15 +254,15 @@ void edn_writer_write_event(edn_writer_t *w, const parse_event_t *event) {
 
                 case VALUE_INT64: {
                     char num_buf[32];
-                    snprintf(num_buf, sizeof(num_buf), "%ld", event->value.int_val);
-                    write_string(w, num_buf);
+                    int n = snprintf(num_buf, sizeof(num_buf), "%ld", event->value.int_val);
+                    write_string_fast(w, num_buf, n);
                     break;
                 }
 
                 case VALUE_DOUBLE: {
                     char num_buf[64];
-                    snprintf(num_buf, sizeof(num_buf), "%.15g", event->value.float_val);
-                    write_string(w, num_buf);
+                    int n = snprintf(num_buf, sizeof(num_buf), "%.15g", event->value.float_val);
+                    write_string_fast(w, num_buf, n);
                     break;
                 }
 
