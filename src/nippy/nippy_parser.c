@@ -506,7 +506,7 @@ static bool parse_primitive(nippy_parser_t *p, uint8_t tag) {
                      uuid_bytes[8], uuid_bytes[9], uuid_bytes[10], uuid_bytes[11],
                      uuid_bytes[12], uuid_bytes[13], uuid_bytes[14], uuid_bytes[15]);
             ev->type = EVENT_VALUE;
-            ev->value_type = VALUE_STRING;
+            ev->value_type = VALUE_UUID;
             ev->value.string_val = uuid_str;
             return true;
         }

@@ -20,6 +20,7 @@ typedef enum {
     TOKEN_STRING,
     TOKEN_KEYWORD,
     TOKEN_SYMBOL,
+    TOKEN_UUID,        // #uuid "..."
     TOKEN_LBRACKET,    // [
     TOKEN_RBRACKET,    // ]
     TOKEN_LBRACE,      // {
@@ -317,6 +318,28 @@ static bool next_token(edn_parser_t *p, token_t *token) {
             if (peek_char(p) == '{') {
                 token->type = TOKEN_HASH_LBRACE;
                 consume_char(p);
+                return true;
+            } else if (peek_char(p) == 'u') {
+                // Check for #uuid
+                char tag[5] = {0};
+                for (int i = 0; i < 4 && peek_char(p) != EOF; i++) {
+                    tag[i] = peek_char(p);
+                    consume_char(p);
+                }
+                if (strcmp(tag, "uuid") != 0) {
+                    snprintf(p->error_buffer, sizeof(p->error_buffer), "Unknown tagged literal: #%s", tag);
+                    return false;
+                }
+                // Skip whitespace and read UUID string
+                skip_whitespace(p);
+                if (peek_char(p) != '"') {
+                    snprintf(p->error_buffer, sizeof(p->error_buffer), "Expected string after #uuid");
+                    return false;
+                }
+                if (!read_string(p, token)) {
+                    return false;
+                }
+                token->type = TOKEN_UUID;
                 return true;
             } else {
                 snprintf(p->error_buffer, sizeof(p->error_buffer), "Unexpected character after #");
@@ -743,6 +766,18 @@ const parse_event_t* edn_parser_next_event(edn_parser_t *p) {
         case TOKEN_STRING:
             p->current_event.type = (coll && coll->type == COLL_MAP && coll->is_map_key) ? EVENT_KEY : EVENT_VALUE;
             p->current_event.value_type = VALUE_STRING;
+            p->current_event.value.string_val = token.str_value;
+            if (coll) {
+                coll->count++;
+                if (coll->type == COLL_MAP) {
+                    coll->is_map_key = !coll->is_map_key;
+                }
+            }
+            return &p->current_event;
+
+        case TOKEN_UUID:
+            p->current_event.type = (coll && coll->type == COLL_MAP && coll->is_map_key) ? EVENT_KEY : EVENT_VALUE;
+            p->current_event.value_type = VALUE_UUID;
             p->current_event.value.string_val = token.str_value;
             if (coll) {
                 coll->count++;

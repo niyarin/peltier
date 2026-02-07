@@ -293,6 +293,14 @@ void edn_writer_write_event(edn_writer_t *w, const parse_event_t *event) {
                     write_char(w, '\\');
                     write_char(w, event->value.int_val);
                     break;
+
+                case VALUE_UUID:
+                    write_string(w, "#uuid \"");
+                    if (event->value.string_val) {
+                        write_string(w, event->value.string_val);
+                    }
+                    write_char(w, '"');
+                    break;
             }
             break;
         }

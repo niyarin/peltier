@@ -33,7 +33,8 @@ typedef enum {
     VALUE_STRING,
     VALUE_KEYWORD,
     VALUE_SYMBOL,
-    VALUE_CHAR
+    VALUE_CHAR,
+    VALUE_UUID
 } value_type_t;
 
 // Value union for different data types

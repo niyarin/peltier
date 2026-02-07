@@ -59,6 +59,8 @@
 #define NIPPY_TYPE_LIST_MD       0x36
 #define NIPPY_TYPE_LIST_LG       0x14
 
+#define NIPPY_TYPE_UUID          0x5B
+
 #define MAX_NESTING_DEPTH 256
 
 typedef enum {
@@ -277,6 +279,60 @@ static bool write_symbol(nippy_writer_t *w, const char *sym) {
     }
 }
 
+// Parse hex character to nibble value
+static int hex_to_nibble(char c) {
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'a' && c <= 'f') return 10 + (c - 'a');
+    if (c >= 'A' && c <= 'F') return 10 + (c - 'A');
+    return -1;
+}
+
+// Write UUID (16 bytes binary)
+// Input format: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" (36 chars)
+static bool write_uuid(nippy_writer_t *w, const char *uuid_str) {
+    if (!uuid_str || strlen(uuid_str) != 36) {
+        snprintf(w->error_buffer, sizeof(w->error_buffer), "Invalid UUID string length");
+        return false;
+    }
+
+    uint8_t uuid_bytes[16];
+    int byte_idx = 0;
+
+    for (int i = 0; i < 36 && byte_idx < 16; i++) {
+        char c = uuid_str[i];
+        if (c == '-') {
+            continue;  // Skip hyphens
+        }
+
+        int high = hex_to_nibble(c);
+        if (high < 0 || i + 1 >= 36) {
+            snprintf(w->error_buffer, sizeof(w->error_buffer), "Invalid UUID hex character");
+            return false;
+        }
+
+        i++;
+        // Skip hyphen if next char
+        if (uuid_str[i] == '-') {
+            i++;
+        }
+
+        int low = hex_to_nibble(uuid_str[i]);
+        if (low < 0) {
+            snprintf(w->error_buffer, sizeof(w->error_buffer), "Invalid UUID hex character");
+            return false;
+        }
+
+        uuid_bytes[byte_idx++] = (uint8_t)((high << 4) | low);
+    }
+
+    if (byte_idx != 16) {
+        snprintf(w->error_buffer, sizeof(w->error_buffer), "Invalid UUID format");
+        return false;
+    }
+
+    return write_byte(w, NIPPY_TYPE_UUID) && write_bytes(w, uuid_bytes, 16);
+}
+
 // Write collection start
 static bool write_collection_start(nippy_writer_t *w, collection_type_t type, size_t count) {
     uint8_t type_tag;
@@ -443,6 +499,12 @@ bool nippy_writer_write_event(nippy_writer_t *w, const parse_event_t *event) {
                     snprintf(w->error_buffer, sizeof(w->error_buffer),
                              "Unsupported value type for Nippy: %d", event->value_type);
                     return false;
+
+                case VALUE_UUID:
+                    if (!write_uuid(w, event->value.string_val)) {
+                        return false;
+                    }
+                    break;
 
                 default:
                     snprintf(w->error_buffer, sizeof(w->error_buffer),
