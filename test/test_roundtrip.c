@@ -215,6 +215,14 @@ void test_set_empty(void) {
     test_roundtrip_file("test-resources/primitive-edns/set-empty.edn");
 }
 
+void test_uuid(void) {
+    test_roundtrip_file("test-resources/primitive-edns/uuid.edn");
+}
+
+void test_uuid_vector(void) {
+    test_roundtrip_file("test-resources/primitive-edns/uuid-vector.edn");
+}
+
 int main(void) {
     UNITY_BEGIN();
 
@@ -254,6 +262,10 @@ int main(void) {
     RUN_TEST(test_map_empty);
     RUN_TEST(test_set);
     RUN_TEST(test_set_empty);
+
+    // UUID
+    RUN_TEST(test_uuid);
+    RUN_TEST(test_uuid_vector);
 
     return UNITY_END();
 }
