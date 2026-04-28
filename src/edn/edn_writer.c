@@ -58,6 +58,34 @@ static void write_string_fast(edn_writer_t *w, const char *s, size_t len) {
     }
 }
 
+static size_t format_int64(char *buf, int64_t value) {
+    char tmp[32];
+    size_t len = 0;
+    uint64_t magnitude;
+
+    if (value < 0) {
+        magnitude = (uint64_t)(-(value + 1)) + 1;
+    } else {
+        magnitude = (uint64_t)value;
+    }
+
+    do {
+        tmp[len++] = (char)('0' + (magnitude % 10));
+        magnitude /= 10;
+    } while (magnitude > 0);
+
+    size_t pos = 0;
+    if (value < 0) {
+        buf[pos++] = '-';
+    }
+
+    while (len > 0) {
+        buf[pos++] = tmp[--len];
+    }
+
+    return pos;
+}
+
 // Write escaped EDN string directly to buffer (avoids malloc/free)
 static void write_escaped_string(edn_writer_t *w, const char *str, size_t len) {
     write_char(w, '"');
@@ -254,7 +282,7 @@ void edn_writer_write_event(edn_writer_t *w, const parse_event_t *event) {
 
                 case VALUE_INT64: {
                     char num_buf[32];
-                    int n = snprintf(num_buf, sizeof(num_buf), "%ld", event->value.int_val);
+                    size_t n = format_int64(num_buf, event->value.int_val);
                     write_string_fast(w, num_buf, n);
                     break;
                 }
