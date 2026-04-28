@@ -90,34 +90,43 @@ static size_t format_int64(char *buf, int64_t value) {
 static void write_escaped_string(edn_writer_t *w, const char *str, size_t len) {
     write_char(w, '"');
 
+    size_t segment_start = 0;
+
     for (size_t i = 0; i < len; i++) {
         char c = str[i];
+        const char *escape = NULL;
+        size_t escape_len = 2;
 
         switch (c) {
             case '"':
-                write_char(w, '\\');
-                write_char(w, '"');
+                escape = "\\\"";
                 break;
             case '\\':
-                write_char(w, '\\');
-                write_char(w, '\\');
+                escape = "\\\\";
                 break;
             case '\n':
-                write_char(w, '\\');
-                write_char(w, 'n');
+                escape = "\\n";
                 break;
             case '\r':
-                write_char(w, '\\');
-                write_char(w, 'r');
+                escape = "\\r";
                 break;
             case '\t':
-                write_char(w, '\\');
-                write_char(w, 't');
+                escape = "\\t";
                 break;
             default:
-                write_char(w, c);
-                break;
+                continue;
         }
+
+        if (i > segment_start) {
+            write_string_fast(w, str + segment_start, i - segment_start);
+        }
+
+        write_string_fast(w, escape, escape_len);
+        segment_start = i + 1;
+    }
+
+    if (segment_start < len) {
+        write_string_fast(w, str + segment_start, len - segment_start);
     }
 
     write_char(w, '"');
