@@ -309,6 +309,7 @@ static char* read_string_data(nippy_parser_t *p, size_t len) {
 // Parse primitive value
 static bool parse_primitive(nippy_parser_t *p, uint8_t tag) {
     parse_event_t *ev = &p->current_event;
+    ev->value_length = 0;
 
     switch (tag) {
         case NIPPY_TYPE_NIL:
@@ -508,6 +509,7 @@ static bool parse_primitive(nippy_parser_t *p, uint8_t tag) {
             ev->type = EVENT_VALUE;
             ev->value_type = VALUE_UUID;
             ev->value.string_val = uuid_str;
+            ev->value_length = 36;
             return true;
         }
 
@@ -521,6 +523,7 @@ static bool parse_primitive(nippy_parser_t *p, uint8_t tag) {
                 ev->type = EVENT_VALUE;
                 ev->value_type = VALUE_STRING;
                 ev->value.string_val = str;
+                ev->value_length = len;
                 return true;
             }
             else if (IS_KEYWORD_TYPE(tag)) {
@@ -532,6 +535,7 @@ static bool parse_primitive(nippy_parser_t *p, uint8_t tag) {
                 ev->type = EVENT_VALUE;
                 ev->value_type = VALUE_KEYWORD;
                 ev->value.string_val = str;
+                ev->value_length = len;
                 return true;
             }
             else if (IS_SYMBOL_TYPE(tag)) {
@@ -543,6 +547,7 @@ static bool parse_primitive(nippy_parser_t *p, uint8_t tag) {
                 ev->type = EVENT_VALUE;
                 ev->value_type = VALUE_SYMBOL;
                 ev->value.string_val = str;
+                ev->value_length = len;
                 return true;
             }
 

@@ -269,7 +269,7 @@ void edn_writer_write_event(edn_writer_t *w, const parse_event_t *event) {
                 case VALUE_STRING: {
                     if (event->value.string_val) {
                         write_escaped_string(w, event->value.string_val,
-                                            strlen(event->value.string_val));
+                                            event->value_length);
                     } else {
                         write_string(w, "\"\"");
                     }

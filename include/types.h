@@ -78,6 +78,7 @@ typedef struct {
     event_type_t type;
     value_type_t value_type;
     value_data_t value;
+    size_t value_length;
     size_t collection_size;  // For START_* events
     const char *error_message;
 } parse_event_t;
