@@ -8,7 +8,7 @@
 #include <string.h>
 #include <getopt.h>
 
-#define VERSION "alpha"
+#define VERSION "beta"
 
 // Subcommand type
 typedef enum {
