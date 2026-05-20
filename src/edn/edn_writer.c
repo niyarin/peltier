@@ -202,7 +202,7 @@ void edn_writer_write_event(edn_writer_t *w, const parse_event_t *event) {
 
         case EVENT_START_SET:
             write_separator(w);
-            write_string(w, "#{");
+            write_string_fast(w, "#{", 2);
             if (w->collection_depth < MAX_NESTING_DEPTH) {
                 w->collection_stack[w->collection_depth].type = COLLECTION_SET;
                 w->collection_stack[w->collection_depth].first_element = true;
@@ -282,11 +282,15 @@ void edn_writer_write_event(edn_writer_t *w, const parse_event_t *event) {
             // Write the value based on type
             switch (event->value_type) {
                 case VALUE_NIL:
-                    write_string(w, "nil");
+                    write_string_fast(w, "nil", 3);
                     break;
 
                 case VALUE_BOOL:
-                    write_string(w, event->value.bool_val ? "true" : "false");
+                    if (event->value.bool_val) {
+                        write_string_fast(w, "true", 4);
+                    } else {
+                        write_string_fast(w, "false", 5);
+                    }
                     break;
 
                 case VALUE_INT64: {
@@ -308,7 +312,7 @@ void edn_writer_write_event(edn_writer_t *w, const parse_event_t *event) {
                         write_escaped_string(w, event->value.string_val,
                                             event->value_length);
                     } else {
-                        write_string(w, "\"\"");
+                        write_string_fast(w, "\"\"", 2);
                     }
                     break;
                 }
@@ -316,13 +320,13 @@ void edn_writer_write_event(edn_writer_t *w, const parse_event_t *event) {
                 case VALUE_KEYWORD:
                     write_char(w, ':');
                     if (event->value.string_val) {
-                        write_string(w, event->value.string_val);
+                        write_string_fast(w, event->value.string_val, event->value_length);
                     }
                     break;
 
                 case VALUE_SYMBOL:
                     if (event->value.string_val) {
-                        write_string(w, event->value.string_val);
+                        write_string_fast(w, event->value.string_val, event->value_length);
                     }
                     break;
 
@@ -332,9 +336,9 @@ void edn_writer_write_event(edn_writer_t *w, const parse_event_t *event) {
                     break;
 
                 case VALUE_UUID:
-                    write_string(w, "#uuid \"");
+                    write_string_fast(w, "#uuid \"", 7);
                     if (event->value.string_val) {
-                        write_string(w, event->value.string_val);
+                        write_string_fast(w, event->value.string_val, event->value_length);
                     }
                     write_char(w, '"');
                     break;
