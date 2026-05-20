@@ -123,30 +123,48 @@ int buffer_peek_byte(buffer_t *buf) {
 }
 
 int16_t buffer_read_int16_be(buffer_t *buf) {
+    if (buf->available - buf->pos >= 2) {
+        uint8_t *p = &buf->data[buf->pos];
+        buf->pos += 2;
+        buf->total_read += 2;
+        return (int16_t)((p[0] << 8) | p[1]);
+    }
     uint8_t bytes[2];
     if (buffer_read_bytes(buf, bytes, 2) != 2) {
         return 0;
     }
-
     return (int16_t)((bytes[0] << 8) | bytes[1]);
 }
 
 int32_t buffer_read_int32_be(buffer_t *buf) {
+    if (buf->available - buf->pos >= 4) {
+        uint8_t *p = &buf->data[buf->pos];
+        buf->pos += 4;
+        buf->total_read += 4;
+        return (int32_t)((p[0] << 24) | (p[1] << 16) | (p[2] << 8) | p[3]);
+    }
     uint8_t bytes[4];
     if (buffer_read_bytes(buf, bytes, 4) != 4) {
         return 0;
     }
-
     return (int32_t)((bytes[0] << 24) | (bytes[1] << 16) |
                      (bytes[2] << 8) | bytes[3]);
 }
 
 int64_t buffer_read_int64_be(buffer_t *buf) {
+    if (buf->available - buf->pos >= 8) {
+        uint8_t *p = &buf->data[buf->pos];
+        buf->pos += 8;
+        buf->total_read += 8;
+        return ((int64_t)p[0] << 56) | ((int64_t)p[1] << 48) |
+               ((int64_t)p[2] << 40) | ((int64_t)p[3] << 32) |
+               ((int64_t)p[4] << 24) | ((int64_t)p[5] << 16) |
+               ((int64_t)p[6] << 8) | (int64_t)p[7];
+    }
     uint8_t bytes[8];
     if (buffer_read_bytes(buf, bytes, 8) != 8) {
         return 0;
     }
-
     return ((int64_t)bytes[0] << 56) | ((int64_t)bytes[1] << 48) |
            ((int64_t)bytes[2] << 40) | ((int64_t)bytes[3] << 32) |
            ((int64_t)bytes[4] << 24) | ((int64_t)bytes[5] << 16) |
@@ -154,20 +172,30 @@ int64_t buffer_read_int64_be(buffer_t *buf) {
 }
 
 uint16_t buffer_read_uint16_be(buffer_t *buf) {
+    if (buf->available - buf->pos >= 2) {
+        uint8_t *p = &buf->data[buf->pos];
+        buf->pos += 2;
+        buf->total_read += 2;
+        return (uint16_t)((p[0] << 8) | p[1]);
+    }
     uint8_t bytes[2];
     if (buffer_read_bytes(buf, bytes, 2) != 2) {
         return 0;
     }
-
     return (uint16_t)((bytes[0] << 8) | bytes[1]);
 }
 
 uint32_t buffer_read_uint32_be(buffer_t *buf) {
+    if (buf->available - buf->pos >= 4) {
+        uint8_t *p = &buf->data[buf->pos];
+        buf->pos += 4;
+        buf->total_read += 4;
+        return (uint32_t)((p[0] << 24) | (p[1] << 16) | (p[2] << 8) | p[3]);
+    }
     uint8_t bytes[4];
     if (buffer_read_bytes(buf, bytes, 4) != 4) {
         return 0;
     }
-
     return (uint32_t)((bytes[0] << 24) | (bytes[1] << 16) |
                       (bytes[2] << 8) | bytes[3]);
 }
