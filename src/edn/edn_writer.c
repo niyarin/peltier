@@ -86,9 +86,23 @@ static size_t format_int64(char *buf, int64_t value) {
     return pos;
 }
 
+static bool has_edn_string_escape(const char *str, size_t len) {
+    return memchr(str, '"', len) != NULL ||
+           memchr(str, '\\', len) != NULL ||
+           memchr(str, '\n', len) != NULL ||
+           memchr(str, '\r', len) != NULL ||
+           memchr(str, '\t', len) != NULL;
+}
+
 // Write escaped EDN string directly to buffer (avoids malloc/free)
 static void write_escaped_string(edn_writer_t *w, const char *str, size_t len) {
     write_char(w, '"');
+
+    if (!has_edn_string_escape(str, len)) {
+        write_string_fast(w, str, len);
+        write_char(w, '"');
+        return;
+    }
 
     size_t segment_start = 0;
 
