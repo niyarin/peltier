@@ -6,8 +6,21 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-// Forward declaration
-typedef struct buffer buffer_t;
+typedef struct buffer {
+    FILE *input;
+    uint8_t *data;
+    size_t size;
+    size_t pos;
+    size_t available;
+    size_t total_read;
+    bool eof_reached;
+    bool owns_file;
+} buffer_t;
+
+#define BUFFER_READ_BYTE(buf) \
+    ((buf)->pos < (buf)->available \
+        ? ((buf)->total_read++, (int)(buf)->data[(buf)->pos++]) \
+        : buffer_read_byte(buf))
 
 // Create buffered reader
 buffer_t* buffer_create(FILE *input, size_t buffer_size);

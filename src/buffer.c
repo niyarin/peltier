@@ -6,16 +6,6 @@
 
 #define DEFAULT_BUFFER_SIZE 8192
 
-struct buffer {
-    FILE *input;
-    uint8_t *data;
-    size_t size;
-    size_t pos;
-    size_t available;
-    size_t total_read;
-    bool eof_reached;
-    bool owns_file;
-};
 
 // Refill buffer from input stream
 static bool buffer_refill(buffer_t *buf) {

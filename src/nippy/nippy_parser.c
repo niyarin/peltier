@@ -267,7 +267,7 @@ static inline size_t read_length_prefix(nippy_parser_t *p, uint8_t tag) {
         case 0:
             return 0;
         case 1: {
-            int b = buffer_read_byte(p->buffer);
+            int b = BUFFER_READ_BYTE(p->buffer);
             return (b >= 0) ? (size_t)((uint8_t)b) : 0;
         }
         case 2: {
@@ -354,7 +354,7 @@ static bool parse_primitive(nippy_parser_t *p, uint8_t tag) {
         }
 
         case NIPPY_TYPE_BYTE: {
-            int byte = buffer_read_byte(p->buffer);
+            int byte = BUFFER_READ_BYTE(p->buffer);
             if (byte < 0) {
                 snprintf(p->error_buffer, sizeof(p->error_buffer),
                          "Unexpected EOF while reading byte");
@@ -386,7 +386,7 @@ static bool parse_primitive(nippy_parser_t *p, uint8_t tag) {
 
         // Optimized positive long types (unsigned reads)
         case NIPPY_TYPE_LONG_POS_SM: {
-            uint8_t byte = buffer_read_byte(p->buffer);
+            uint8_t byte = BUFFER_READ_BYTE(p->buffer);
             ev->type = EVENT_VALUE;
             ev->value_type = VALUE_INT64;
             ev->value.int_val = byte;
@@ -411,7 +411,7 @@ static bool parse_primitive(nippy_parser_t *p, uint8_t tag) {
 
         // Optimized negative long types (unsigned read, then negate)
         case NIPPY_TYPE_LONG_NEG_SM: {
-            uint8_t byte = buffer_read_byte(p->buffer);
+            uint8_t byte = BUFFER_READ_BYTE(p->buffer);
             ev->type = EVENT_VALUE;
             ev->value_type = VALUE_INT64;
             ev->value.int_val = -(int64_t)byte;
@@ -436,7 +436,7 @@ static bool parse_primitive(nippy_parser_t *p, uint8_t tag) {
 
         // Deprecated signed long types (v3.3.0+)
         case NIPPY_TYPE_LONG_SM_: {
-            int8_t byte = buffer_read_byte(p->buffer);
+            int8_t byte = BUFFER_READ_BYTE(p->buffer);
             ev->type = EVENT_VALUE;
             ev->value_type = VALUE_INT64;
             ev->value.int_val = byte;
@@ -762,7 +762,7 @@ const parse_event_t* nippy_parser_next_event(nippy_parser_t *p) {
 
         switch (p->state) {
             case STATE_READ_TYPE_TAG: {
-                int tag_int = buffer_read_byte(p->buffer);
+                int tag_int = BUFFER_READ_BYTE(p->buffer);
                 if (tag_int < 0) {
                     // Reached EOF - close all open collections
                     if (p->stack_depth == 0) {
