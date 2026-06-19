@@ -1,5 +1,6 @@
 #include "edn_writer.h"
 #include "../../include/utils.h"
+#include "../../include/simd.h"
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
@@ -86,61 +87,36 @@ static size_t format_int64(char *buf, int64_t value) {
     return pos;
 }
 
-static bool has_edn_string_escape(const char *str, size_t len) {
-    return memchr(str, '"', len) != NULL ||
-           memchr(str, '\\', len) != NULL ||
-           memchr(str, '\n', len) != NULL ||
-           memchr(str, '\r', len) != NULL ||
-           memchr(str, '\t', len) != NULL;
-}
-
 // Write escaped EDN string directly to buffer (avoids malloc/free)
 static void write_escaped_string(edn_writer_t *w, const char *str, size_t len) {
     write_char(w, '"');
 
-    if (!has_edn_string_escape(str, len)) {
-        write_string_fast(w, str, len);
-        write_char(w, '"');
-        return;
-    }
+    const char *p = str;
+    size_t remaining = len;
 
-    size_t segment_start = 0;
-
-    for (size_t i = 0; i < len; i++) {
-        char c = str[i];
-        const char *escape = NULL;
-        size_t escape_len = 2;
-
-        switch (c) {
-            case '"':
-                escape = "\\\"";
-                break;
-            case '\\':
-                escape = "\\\\";
-                break;
-            case '\n':
-                escape = "\\n";
-                break;
-            case '\r':
-                escape = "\\r";
-                break;
-            case '\t':
-                escape = "\\t";
-                break;
-            default:
-                continue;
+    while (remaining > 0) {
+        const char *esc = find_edn_escape(p, remaining);
+        if (!esc) {
+            write_string_fast(w, p, remaining);
+            break;
         }
 
-        if (i > segment_start) {
-            write_string_fast(w, str + segment_start, i - segment_start);
+        if (esc > p) {
+            write_string_fast(w, p, esc - p);
         }
 
-        write_string_fast(w, escape, escape_len);
-        segment_start = i + 1;
-    }
+        const char *escape_seq;
+        switch (*esc) {
+            case '"':  escape_seq = "\\\""; break;
+            case '\\': escape_seq = "\\\\"; break;
+            case '\n': escape_seq = "\\n";  break;
+            case '\r': escape_seq = "\\r";  break;
+            default:   escape_seq = "\\t";  break;
+        }
+        write_string_fast(w, escape_seq, 2);
 
-    if (segment_start < len) {
-        write_string_fast(w, str + segment_start, len - segment_start);
+        remaining -= (esc - p) + 1;
+        p = esc + 1;
     }
 
     write_char(w, '"');

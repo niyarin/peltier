@@ -74,4 +74,11 @@ test-regression: test/test_regression
 install: $(TARGET)
 	install -m 755 $(TARGET) /usr/local/bin/
 
-.PHONY: all clean test test-roundtrip test-regression install
+peltier-prof: $(SRC)
+	$(CC) -std=c11 -O2 -pg -Iinclude -o $@ $^
+
+prof: peltier-prof
+	@echo "Run: ./peltier-prof thaw <input.nippy> > /dev/null"
+	@echo "Then: gprof peltier-prof gmon.out | less"
+
+.PHONY: all clean test test-roundtrip test-regression install prof
