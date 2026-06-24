@@ -139,6 +139,30 @@ void test_integer_zero(void) {
     test_roundtrip_file("test-resources/primitive-edns/integer-zero.edn");
 }
 
+void test_integer_md(void) {
+    test_roundtrip_file("test-resources/primitive-edns/integer-md.edn");
+}
+
+void test_integer_md_neg(void) {
+    test_roundtrip_file("test-resources/primitive-edns/integer-md-neg.edn");
+}
+
+void test_integer_lg(void) {
+    test_roundtrip_file("test-resources/primitive-edns/integer-lg.edn");
+}
+
+void test_integer_lg_neg(void) {
+    test_roundtrip_file("test-resources/primitive-edns/integer-lg-neg.edn");
+}
+
+void test_integer_xl(void) {
+    test_roundtrip_file("test-resources/primitive-edns/integer-xl.edn");
+}
+
+void test_integer_xl_neg(void) {
+    test_roundtrip_file("test-resources/primitive-edns/integer-xl-neg.edn");
+}
+
 void test_double(void) {
     test_roundtrip_file("test-resources/primitive-edns/double.edn");
 }
@@ -235,6 +259,12 @@ int main(void) {
     RUN_TEST(test_integer);
     RUN_TEST(test_integer_negative);
     RUN_TEST(test_integer_zero);
+    RUN_TEST(test_integer_md);
+    RUN_TEST(test_integer_md_neg);
+    RUN_TEST(test_integer_lg);
+    RUN_TEST(test_integer_lg_neg);
+    RUN_TEST(test_integer_xl);
+    RUN_TEST(test_integer_xl_neg);
     RUN_TEST(test_double);
     RUN_TEST(test_double_negative);
     RUN_TEST(test_double_scientific);
