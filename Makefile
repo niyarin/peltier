@@ -74,4 +74,27 @@ test-regression: test/test_regression
 install: $(TARGET)
 	install -m 755 $(TARGET) /usr/local/bin/
 
-.PHONY: all clean test test-roundtrip test-regression install
+# Coverage
+GCOV = $(shell $(CC) --print-prog-name=gcov)
+COVFLAGS = -std=c11 -Wall -Iinclude -I. -fprofile-arcs -ftest-coverage -O0
+
+test/test_roundtrip_cov: test/test_roundtrip.c $(UNITY_SRC) $(TEST_SRC)
+	$(CC) $(COVFLAGS) -o $@ $^
+
+test/test_regression_cov: test/test_regression.c $(UNITY_SRC) $(TEST_SRC)
+	$(CC) $(COVFLAGS) -o $@ $^
+
+coverage: test/test_roundtrip_cov test/test_regression_cov
+	./test/test_roundtrip_cov
+	./test/test_regression_cov
+	@cd test && $(GCOV) test_roundtrip_cov-*.gcda test_regression_cov-*.gcda 2>/dev/null \
+		| grep -E "^File '(src|include)|Lines executed" \
+		| grep -v "Unity\|test_roundtrip\|test_regression\|emmintrin"
+
+clean-coverage:
+	rm -f test/test_roundtrip_cov test/test_regression_cov
+	rm -f test/*.gcda test/*.gcno test/*.gcov
+	rm -f *.gcov coverage.info
+	rm -rf coverage-html
+
+.PHONY: all clean test test-roundtrip test-regression install coverage clean-coverage
