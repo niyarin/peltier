@@ -74,4 +74,41 @@ test-regression: test/test_regression
 install: $(TARGET)
 	install -m 755 $(TARGET) /usr/local/bin/
 
-.PHONY: all clean test test-roundtrip test-regression install
+# Coverage
+GCC_VERSION = $(shell $(CC) -dumpversion | cut -d. -f1)
+GCOV = gcov-$(GCC_VERSION)
+GCOV_TOOL = gcov-tool-$(GCC_VERSION)
+COVFLAGS = -std=c11 -Wall -Iinclude -I. -fprofile-arcs -ftest-coverage -O0
+COV_RT_DIR = test/cov-rt
+COV_RG_DIR = test/cov-rg
+COV_MERGED_DIR = test/cov-merged
+
+test/test_roundtrip_cov: test/test_roundtrip.c $(UNITY_SRC) $(TEST_SRC)
+	$(CC) $(COVFLAGS) -o $@ $^
+
+test/test_regression_cov: test/test_regression.c $(UNITY_SRC) $(TEST_SRC)
+	$(CC) $(COVFLAGS) -o $@ $^
+
+coverage: test/test_roundtrip_cov test/test_regression_cov
+	./test/test_roundtrip_cov
+	./test/test_regression_cov
+	@rm -rf $(COV_RT_DIR) $(COV_RG_DIR) $(COV_MERGED_DIR)
+	@mkdir -p $(COV_RT_DIR) $(COV_RG_DIR)
+	@cd test && for f in test_roundtrip_cov-*.gcda test_roundtrip_cov-*.gcno; do \
+		cp "$$f" "../$(COV_RT_DIR)/$${f#test_roundtrip_cov-}"; done
+	@cd test && for f in test_regression_cov-*.gcda test_regression_cov-*.gcno; do \
+		cp "$$f" "../$(COV_RG_DIR)/$${f#test_regression_cov-}"; done
+	@$(GCOV_TOOL) merge -o $(COV_MERGED_DIR) $(COV_RT_DIR) $(COV_RG_DIR)
+	@cp $(COV_RT_DIR)/*.gcno $(COV_MERGED_DIR)/
+	@$(GCOV) -o $(COV_MERGED_DIR) $(TEST_SRC) 2>/dev/null \
+		| grep -E "^File '(src|include)|Lines executed" \
+		| grep -v "Unity\|emmintrin"
+
+clean-coverage:
+	rm -f test/test_roundtrip_cov test/test_regression_cov
+	rm -f test/*.gcda test/*.gcno test/*.gcov
+	rm -rf $(COV_RT_DIR) $(COV_RG_DIR) $(COV_MERGED_DIR)
+	rm -f *.gcov coverage.info
+	rm -rf coverage-html
+
+.PHONY: all clean test test-roundtrip test-regression install coverage clean-coverage
