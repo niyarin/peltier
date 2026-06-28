@@ -173,6 +173,14 @@ void test_regression_v330_types_thaw(void) {
 }
 
 //=============================================================================
+// Regression test: Long strings >= 32768 bytes
+// (Issue: str-md length was read as signed int16, causing 32768+ to fail)
+//=============================================================================
+void test_regression_long_string_thaw(void) {
+    test_thaw_compatibility("regression-long-string");
+}
+
+//=============================================================================
 // Main
 //=============================================================================
 int main(void) {
@@ -189,6 +197,9 @@ int main(void) {
     // v3.3.0 type codes regression (Issue: 0x69/0x6E/0x6F/0x70 for str/vec/set/map)
     RUN_TEST(test_regression_v330_types_roundtrip);
     RUN_TEST(test_regression_v330_types_thaw);
+
+    // Long string regression (Issue: str-md length read as signed int16)
+    RUN_TEST(test_regression_long_string_thaw);
 
     return UNITY_END();
 }
