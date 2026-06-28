@@ -271,12 +271,14 @@ static inline size_t read_length_prefix(nippy_parser_t *p, uint8_t tag) {
             return (b >= 0) ? (size_t)((uint8_t)b) : 0;
         }
         case 2: {
-            int16_t len = buffer_read_int16_be(p->buffer);
-            return (len >= 0) ? (size_t)len : 0;
+            // Use unsigned read to support lengths up to 65535
+            uint16_t len = buffer_read_uint16_be(p->buffer);
+            return (size_t)len;
         }
         case 4: {
-            int32_t len = buffer_read_int32_be(p->buffer);
-            return (len >= 0) ? (size_t)len : 0;
+            // Use unsigned read to support lengths up to 4GB
+            uint32_t len = buffer_read_uint32_be(p->buffer);
+            return (size_t)len;
         }
         default:
             return 0;
