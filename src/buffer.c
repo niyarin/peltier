@@ -80,6 +80,9 @@ int buffer_read_byte(buffer_t *buf) {
     return byte;
 }
 
+// Threshold for bypassing buffer and reading directly
+#define DIRECT_READ_THRESHOLD 1024
+
 size_t buffer_read_bytes(buffer_t *buf, void *dest, size_t n) {
     assert(buf != NULL);
     assert(dest != NULL || n == 0);
@@ -87,16 +90,37 @@ size_t buffer_read_bytes(buffer_t *buf, void *dest, size_t n) {
     size_t total = 0;
     uint8_t *out = (uint8_t *)dest;
 
+    // First, drain any remaining data in the buffer
+    size_t buffered = buf->available - buf->pos;
+    if (buffered > 0) {
+        size_t to_copy = (n < buffered) ? n : buffered;
+        memcpy(out, &buf->data[buf->pos], to_copy);
+        buf->pos += to_copy;
+        total += to_copy;
+        buf->total_read += to_copy;
+    }
+
+    // If remaining bytes >= 1KB, read directly to destination
+    size_t remaining = n - total;
+    if (remaining >= DIRECT_READ_THRESHOLD && !buf->eof_reached) {
+        size_t direct_read = fread(&out[total], 1, remaining, buf->input);
+        total += direct_read;
+        buf->total_read += direct_read;
+        if (direct_read < remaining) {
+            buf->eof_reached = true;
+        }
+        return total;
+    }
+
+    // Handle small remaining bytes through the buffer
     while (total < n) {
-        // Refill if needed
         if (buf->pos >= buf->available) {
             if (!buffer_refill(buf)) {
                 break;
             }
         }
 
-        // Copy available bytes
-        size_t remaining = n - total;
+        remaining = n - total;
         size_t available = buf->available - buf->pos;
         size_t to_copy = (remaining < available) ? remaining : available;
 
